@@ -62,3 +62,21 @@ pub async fn update_cleanup_prompt(
 ) -> Result<(), String> {
     settings_manager.update_cleanup_prompt(prompt)
 }
+
+/// Update the STT provider setting
+#[tauri::command]
+pub async fn update_stt_provider(
+    provider: Option<String>,
+    settings_manager: State<'_, SettingsManager>,
+) -> Result<(), String> {
+    settings_manager.update_stt_provider(provider)
+}
+
+/// Update the LLM provider setting
+#[tauri::command]
+pub async fn update_llm_provider(
+    provider: Option<String>,
+    settings_manager: State<'_, SettingsManager>,
+) -> Result<(), String> {
+    settings_manager.update_llm_provider(provider)
+}

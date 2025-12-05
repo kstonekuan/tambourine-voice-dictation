@@ -14,7 +14,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	useAddHistoryEntry,
 	useServerUrl,
+	useSetServerLLMProvider,
 	useSetServerPrompt,
+	useSetServerSTTProvider,
 	useSettings,
 	useTypeText,
 } from "./lib/queries";
@@ -66,6 +68,8 @@ function RecordingControl() {
 	const typeTextMutation = useTypeText();
 	const addHistoryEntry = useAddHistoryEntry();
 	const setServerPrompt = useSetServerPrompt();
+	const setServerSTTProvider = useSetServerSTTProvider();
+	const setServerLLMProvider = useSetServerLLMProvider();
 
 	// Response timeout (10s)
 	const { start: startResponseTimeout, clear: clearResponseTimeout } =
@@ -185,6 +189,22 @@ function RecordingControl() {
 			const promptToSync = settings?.cleanup_prompt ?? null;
 			setServerPrompt.mutate(promptToSync);
 			console.log("[Pipecat] Synced cleanup prompt to server via REST API");
+
+			// Sync provider preferences to server
+			if (settings?.stt_provider) {
+				setServerSTTProvider.mutate(settings.stt_provider);
+				console.log(
+					"[Pipecat] Synced STT provider to server:",
+					settings.stt_provider,
+				);
+			}
+			if (settings?.llm_provider) {
+				setServerLLMProvider.mutate(settings.llm_provider);
+				console.log(
+					"[Pipecat] Synced LLM provider to server:",
+					settings.llm_provider,
+				);
+			}
 		};
 
 		const onDisconnected = () => {
@@ -298,6 +318,8 @@ function RecordingControl() {
 		addHistoryEntry,
 		clearResponseTimeout,
 		setServerPrompt,
+		setServerSTTProvider,
+		setServerLLMProvider,
 	]);
 
 	// Click handler (toggle mode)

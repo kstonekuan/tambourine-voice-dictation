@@ -40,6 +40,8 @@ pub fn run() {
             commands::settings::update_selected_mic,
             commands::settings::update_sound_enabled,
             commands::settings::update_cleanup_prompt,
+            commands::settings::update_stt_provider,
+            commands::settings::update_llm_provider,
             commands::history::add_history_entry,
             commands::history::get_history,
             commands::history::delete_history_entry,

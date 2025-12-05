@@ -5,6 +5,7 @@ import {
 	Kbd,
 	Loader,
 	NavLink,
+	Select,
 	Switch,
 	Text,
 	Textarea,
@@ -17,12 +18,18 @@ import { DeviceSelector } from "./components/DeviceSelector";
 import { HistoryFeed } from "./components/HistoryFeed";
 import { HotkeyInput } from "./components/HotkeyInput";
 import {
+	useAvailableProviders,
+	useCurrentProviders,
 	useDefaultPrompt,
+	useSetServerLLMProvider,
 	useSetServerPrompt,
+	useSetServerSTTProvider,
 	useSettings,
 	useUpdateCleanupPrompt,
 	useUpdateHoldHotkey,
+	useUpdateLLMProvider,
 	useUpdateSoundEnabled,
+	useUpdateSTTProvider,
 	useUpdateToggleHotkey,
 } from "./lib/queries";
 import type { HotkeyConfig } from "./lib/tauri";
@@ -210,11 +217,18 @@ function SettingsView() {
 	const { data: settings, isLoading } = useSettings();
 	const { data: defaultPromptData, isLoading: isLoadingDefaultPrompt } =
 		useDefaultPrompt();
+	const { data: availableProviders, isLoading: isLoadingProviders } =
+		useAvailableProviders();
+	const { data: currentProviders } = useCurrentProviders();
 	const updateSoundEnabled = useUpdateSoundEnabled();
 	const updateToggleHotkey = useUpdateToggleHotkey();
 	const updateHoldHotkey = useUpdateHoldHotkey();
 	const updateCleanupPrompt = useUpdateCleanupPrompt();
 	const setServerPrompt = useSetServerPrompt();
+	const updateSTTProvider = useUpdateSTTProvider();
+	const updateLLMProvider = useUpdateLLMProvider();
+	const setServerSTTProvider = useSetServerSTTProvider();
+	const setServerLLMProvider = useSetServerLLMProvider();
 
 	// Local state for the prompt textarea
 	const [promptValue, setPromptValue] = useState<string>("");
@@ -282,6 +296,41 @@ function SettingsView() {
 		});
 	};
 
+	const handleSTTProviderChange = (value: string | null) => {
+		if (!value) return;
+		// Save to Tauri for persistence
+		updateSTTProvider.mutate(value, {
+			onSuccess: () => {
+				// Switch on server immediately
+				setServerSTTProvider.mutate(value);
+			},
+		});
+	};
+
+	const handleLLMProviderChange = (value: string | null) => {
+		if (!value) return;
+		// Save to Tauri for persistence
+		updateLLMProvider.mutate(value, {
+			onSuccess: () => {
+				// Switch on server immediately
+				setServerLLMProvider.mutate(value);
+			},
+		});
+	};
+
+	// Transform provider data for Select component
+	const sttProviderOptions =
+		availableProviders?.stt.map((p) => ({
+			value: p.value,
+			label: p.label,
+		})) ?? [];
+
+	const llmProviderOptions =
+		availableProviders?.llm.map((p) => ({
+			value: p.value,
+			label: p.label,
+		})) ?? [];
+
 	const defaultToggleHotkey: HotkeyConfig = {
 		modifiers: ["ctrl", "alt"],
 		key: "Space",
@@ -304,6 +353,64 @@ function SettingsView() {
 			</header>
 
 			<div className="settings-section animate-in animate-in-delay-1">
+				<h3 className="settings-section-title">Providers</h3>
+				<div className="settings-card">
+					<div className="settings-row">
+						<div>
+							<p className="settings-label">Speech-to-Text</p>
+							<p className="settings-description">
+								Service for transcribing audio
+							</p>
+						</div>
+						{isLoadingProviders ? (
+							<Loader size="sm" color="orange" />
+						) : (
+							<Select
+								data={sttProviderOptions}
+								value={currentProviders?.stt ?? settings?.stt_provider ?? null}
+								onChange={handleSTTProviderChange}
+								placeholder="Select provider"
+								disabled={sttProviderOptions.length === 0}
+								styles={{
+									input: {
+										backgroundColor: "var(--bg-elevated)",
+										borderColor: "var(--border-default)",
+										color: "var(--text-primary)",
+									},
+								}}
+							/>
+						)}
+					</div>
+					<div className="settings-row" style={{ marginTop: 16 }}>
+						<div>
+							<p className="settings-label">Language Model</p>
+							<p className="settings-description">
+								AI service for text cleanup
+							</p>
+						</div>
+						{isLoadingProviders ? (
+							<Loader size="sm" color="orange" />
+						) : (
+							<Select
+								data={llmProviderOptions}
+								value={currentProviders?.llm ?? settings?.llm_provider ?? null}
+								onChange={handleLLMProviderChange}
+								placeholder="Select provider"
+								disabled={llmProviderOptions.length === 0}
+								styles={{
+									input: {
+										backgroundColor: "var(--bg-elevated)",
+										borderColor: "var(--border-default)",
+										color: "var(--text-primary)",
+									},
+								}}
+							/>
+						)}
+					</div>
+				</div>
+			</div>
+
+			<div className="settings-section animate-in animate-in-delay-2">
 				<h3 className="settings-section-title">Audio</h3>
 				<div className="settings-card">
 					<DeviceSelector />
@@ -327,7 +434,7 @@ function SettingsView() {
 				</div>
 			</div>
 
-			<div className="settings-section animate-in animate-in-delay-2">
+			<div className="settings-section animate-in animate-in-delay-3">
 				<h3 className="settings-section-title">Hotkeys</h3>
 				<div className="settings-card">
 					<HotkeyInput
@@ -359,7 +466,7 @@ function SettingsView() {
 				</Alert>
 			</div>
 
-			<div className="settings-section animate-in animate-in-delay-3">
+			<div className="settings-section animate-in animate-in-delay-4">
 				<h3 className="settings-section-title">Advanced</h3>
 				<div className="settings-card">
 					<Accordion variant="separated" radius="md">

@@ -43,6 +43,14 @@ pub struct AppSettings {
     /// Custom LLM cleanup prompt (None = use server default)
     #[serde(default)]
     pub cleanup_prompt: Option<String>,
+
+    /// Selected STT provider (None = use server default)
+    #[serde(default)]
+    pub stt_provider: Option<String>,
+
+    /// Selected LLM provider (None = use server default)
+    #[serde(default)]
+    pub llm_provider: Option<String>,
 }
 
 fn default_toggle_hotkey() -> HotkeyConfig {
@@ -71,6 +79,8 @@ impl Default for AppSettings {
             selected_mic_id: None,
             sound_enabled: true,
             cleanup_prompt: None,
+            stt_provider: None,
+            llm_provider: None,
         }
     }
 }
@@ -198,6 +208,30 @@ impl SettingsManager {
                 .write()
                 .map_err(|e| format!("Failed to write settings: {}", e))?;
             settings.cleanup_prompt = prompt;
+        }
+        self.save()
+    }
+
+    /// Update the STT provider setting
+    pub fn update_stt_provider(&self, provider: Option<String>) -> Result<(), String> {
+        {
+            let mut settings = self
+                .settings
+                .write()
+                .map_err(|e| format!("Failed to write settings: {}", e))?;
+            settings.stt_provider = provider;
+        }
+        self.save()
+    }
+
+    /// Update the LLM provider setting
+    pub fn update_llm_provider(&self, provider: Option<String>) -> Result<(), String> {
+        {
+            let mut settings = self
+                .settings
+                .write()
+                .map_err(|e| format!("Failed to write settings: {}", e))?;
+            settings.llm_provider = provider;
         }
         self.save()
     }

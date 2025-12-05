@@ -128,3 +128,63 @@ export function useSetServerPrompt() {
 		mutationFn: (prompt: string | null) => configAPI.setPrompt(prompt),
 	});
 }
+
+// Provider queries and mutations
+
+export function useAvailableProviders() {
+	return useQuery({
+		queryKey: ["availableProviders"],
+		queryFn: () => configAPI.getAvailableProviders(),
+		retry: false, // Don't retry if server not available
+	});
+}
+
+export function useCurrentProviders() {
+	return useQuery({
+		queryKey: ["currentProviders"],
+		queryFn: () => configAPI.getCurrentProviders(),
+		retry: false,
+	});
+}
+
+export function useUpdateSTTProvider() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (provider: string | null) =>
+			tauriAPI.updateSTTProvider(provider),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["settings"] });
+		},
+	});
+}
+
+export function useUpdateLLMProvider() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (provider: string | null) =>
+			tauriAPI.updateLLMProvider(provider),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["settings"] });
+		},
+	});
+}
+
+export function useSetServerSTTProvider() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (provider: string) => configAPI.setSTTProvider(provider),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["currentProviders"] });
+		},
+	});
+}
+
+export function useSetServerLLMProvider() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (provider: string) => configAPI.setLLMProvider(provider),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["currentProviders"] });
+		},
+	});
+}

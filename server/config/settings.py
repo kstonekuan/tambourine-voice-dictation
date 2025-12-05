@@ -14,9 +14,21 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    # API Keys - Required
-    cartesia_api_key: str = Field(..., description="Cartesia API key for STT service")
-    cerebras_api_key: str = Field(..., description="Cerebras API key for LLM service")
+    # STT API Keys (at least one required)
+    assemblyai_api_key: str | None = Field(None, description="AssemblyAI API key for STT")
+    cartesia_api_key: str | None = Field(None, description="Cartesia API key for STT")
+    deepgram_api_key: str | None = Field(None, description="Deepgram API key for STT")
+
+    # LLM API Keys (at least one required)
+    openai_api_key: str | None = Field(None, description="OpenAI API key for LLM")
+    google_api_key: str | None = Field(None, description="Google API key for Gemini LLM")
+    anthropic_api_key: str | None = Field(None, description="Anthropic API key for LLM")
+    cerebras_api_key: str | None = Field(None, description="Cerebras API key for LLM")
+    groq_api_key: str | None = Field(None, description="Groq API key for LLM")
+
+    # Default providers (used when no preference is set)
+    default_stt_provider: str = Field("cartesia", description="Default STT provider")
+    default_llm_provider: str = Field("cerebras", description="Default LLM provider")
 
     # Logging
     log_level: str = Field("INFO", description="Logging level")

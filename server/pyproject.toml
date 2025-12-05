@@ -6,12 +6,12 @@ license = "AGPL-3.0"
 readme = "../README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "pipecat-ai[cartesia,cerebras,silero]>=0.0.96",
+    "pipecat-ai[assemblyai,anthropic,cartesia,cerebras,deepgram,google,groq,openai,silero]>=0.0.96",
     "pydantic-settings>=2.12.0",
     "loguru>=0.7.3",
     "typer>=0.20.0",
-    "fastapi>=0.115.0",
-    "uvicorn>=0.32.0",
+    "fastapi>=0.123.9",
+    "uvicorn>=0.38.0",
 ]
 
 [project.scripts]

@@ -23,6 +23,8 @@ interface AppSettings {
 	selected_mic_id: string | null;
 	sound_enabled: boolean;
 	cleanup_prompt: string | null;
+	stt_provider: string | null;
+	llm_provider: string | null;
 }
 
 export const tauriAPI = {
@@ -76,6 +78,14 @@ export const tauriAPI = {
 		return invoke("update_cleanup_prompt", { prompt });
 	},
 
+	async updateSTTProvider(provider: string | null): Promise<void> {
+		return invoke("update_stt_provider", { provider });
+	},
+
+	async updateLLMProvider(provider: string | null): Promise<void> {
+		return invoke("update_llm_provider", { provider });
+	},
+
 	// History API
 	async addHistoryEntry(text: string): Promise<HistoryEntry> {
 		return invoke("add_history_entry", { text });
@@ -102,17 +112,38 @@ export const tauriAPI = {
 // Config API for server-side settings (FastAPI)
 const CONFIG_API_URL = "http://127.0.0.1:8766";
 
-export interface DefaultPromptResponse {
+interface DefaultPromptResponse {
 	prompt: string;
 }
 
-export interface CurrentPromptResponse {
+interface CurrentPromptResponse {
 	prompt: string;
 	is_custom: boolean;
 }
 
-export interface SetPromptResponse {
+interface SetPromptResponse {
 	success: boolean;
+	error?: string;
+}
+
+interface ProviderInfo {
+	value: string;
+	label: string;
+}
+
+interface AvailableProvidersResponse {
+	stt: ProviderInfo[];
+	llm: ProviderInfo[];
+}
+
+interface CurrentProvidersResponse {
+	stt: string | null;
+	llm: string | null;
+}
+
+interface SwitchProviderResponse {
+	success: boolean;
+	provider?: string;
 	error?: string;
 }
 
@@ -132,6 +163,35 @@ export const configAPI = {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ prompt }),
+		});
+		return response.json();
+	},
+
+	// Provider APIs
+	async getAvailableProviders(): Promise<AvailableProvidersResponse> {
+		const response = await fetch(`${CONFIG_API_URL}/api/providers/available`);
+		return response.json();
+	},
+
+	async getCurrentProviders(): Promise<CurrentProvidersResponse> {
+		const response = await fetch(`${CONFIG_API_URL}/api/providers/current`);
+		return response.json();
+	},
+
+	async setSTTProvider(provider: string): Promise<SwitchProviderResponse> {
+		const response = await fetch(`${CONFIG_API_URL}/api/providers/stt`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ provider }),
+		});
+		return response.json();
+	},
+
+	async setLLMProvider(provider: string): Promise<SwitchProviderResponse> {
+		const response = await fetch(`${CONFIG_API_URL}/api/providers/llm`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ provider }),
 		});
 		return response.json();
 	},
