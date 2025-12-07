@@ -80,3 +80,12 @@ pub async fn update_llm_provider(
 ) -> Result<(), String> {
     settings_manager.update_llm_provider(provider)
 }
+
+/// Update the auto mute audio setting
+#[tauri::command]
+pub async fn update_auto_mute_audio(
+    enabled: bool,
+    settings_manager: State<'_, SettingsManager>,
+) -> Result<(), String> {
+    settings_manager.update_auto_mute_audio(enabled)
+}

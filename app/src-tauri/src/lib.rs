@@ -6,17 +6,25 @@ use tauri::{
 };
 
 mod audio;
+mod audio_mute;
 mod commands;
 mod history;
 mod settings;
 mod state;
 
+use audio_mute::AudioMuteManager;
 use history::HistoryStorage;
 use settings::SettingsManager;
 use state::AppState;
 
 #[cfg(desktop)]
 use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
+
+/// Check if audio mute is supported on this platform
+#[tauri::command]
+fn is_audio_mute_supported() -> bool {
+    audio_mute::is_supported()
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -42,6 +50,8 @@ pub fn run() {
             commands::settings::update_cleanup_prompt,
             commands::settings::update_stt_provider,
             commands::settings::update_llm_provider,
+            commands::settings::update_auto_mute_audio,
+            is_audio_mute_supported,
             commands::history::add_history_entry,
             commands::history::get_history,
             commands::history::delete_history_entry,
@@ -60,6 +70,11 @@ pub fn run() {
 
             let history_storage = HistoryStorage::new(app_data_dir);
             app.manage(history_storage);
+
+            // Initialize audio mute manager (may be None on unsupported platforms)
+            if let Some(audio_mute_manager) = AudioMuteManager::new() {
+                app.manage(audio_mute_manager);
+            }
             // Create overlay window
             let overlay = tauri::WebviewWindowBuilder::new(
                 app,
@@ -163,10 +178,37 @@ fn build_global_shortcut_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
             let settings_manager = app.state::<SettingsManager>();
 
             // Check if sound is enabled
-            let sound_enabled = settings_manager
-                .get()
-                .map(|s| s.sound_enabled)
-                .unwrap_or(true);
+            let settings = settings_manager.get().ok();
+            let sound_enabled = settings.as_ref().map(|s| s.sound_enabled).unwrap_or(true);
+            let auto_mute_audio = settings
+                .as_ref()
+                .map(|s| s.auto_mute_audio)
+                .unwrap_or(false);
+
+            // Get audio mute manager if available
+            let audio_mute_manager = app.try_state::<AudioMuteManager>();
+
+            // Helper to mute audio
+            let mute_audio = || {
+                if auto_mute_audio {
+                    if let Some(manager) = &audio_mute_manager {
+                        if let Err(e) = manager.mute() {
+                            log::warn!("Failed to mute audio: {}", e);
+                        }
+                    }
+                }
+            };
+
+            // Helper to unmute audio
+            let unmute_audio = || {
+                if auto_mute_audio {
+                    if let Some(manager) = &audio_mute_manager {
+                        if let Err(e) = manager.unmute() {
+                            log::warn!("Failed to unmute audio: {}", e);
+                        }
+                    }
+                }
+            };
 
             let toggle_shortcut =
                 Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space);
@@ -182,6 +224,7 @@ fn build_global_shortcut_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
                         // Stop recording
                         state.is_recording.store(false, Ordering::SeqCst);
                         log::info!("Toggle: stopping recording");
+                        unmute_audio();
                         if sound_enabled {
                             audio::play_sound(audio::SoundType::RecordingStop);
                         }
@@ -190,6 +233,7 @@ fn build_global_shortcut_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
                         // Start recording
                         state.is_recording.store(true, Ordering::SeqCst);
                         log::info!("Toggle: starting recording");
+                        mute_audio();
                         if sound_enabled {
                             audio::play_sound(audio::SoundType::RecordingStart);
                         }
@@ -205,6 +249,7 @@ fn build_global_shortcut_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
                             // First press - start recording
                             state.is_recording.store(true, Ordering::SeqCst);
                             log::info!("Hold: starting recording");
+                            mute_audio();
                             if sound_enabled {
                                 audio::play_sound(audio::SoundType::RecordingStart);
                             }
@@ -216,6 +261,7 @@ fn build_global_shortcut_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
                             // Key released - stop recording
                             state.is_recording.store(false, Ordering::SeqCst);
                             log::info!("Hold: stopping recording");
+                            unmute_audio();
                             if sound_enabled {
                                 audio::play_sound(audio::SoundType::RecordingStop);
                             }

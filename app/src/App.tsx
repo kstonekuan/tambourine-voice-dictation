@@ -12,19 +12,22 @@ import {
 	Title,
 	Tooltip,
 } from "@mantine/core";
-import { AlertCircle, Home, Mic, Settings } from "lucide-react";
+import { AlertCircle, Home, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { DeviceSelector } from "./components/DeviceSelector";
 import { HistoryFeed } from "./components/HistoryFeed";
 import { HotkeyInput } from "./components/HotkeyInput";
+import { Logo } from "./components/Logo";
 import {
 	useAvailableProviders,
 	useCurrentProviders,
 	useDefaultPrompt,
+	useIsAudioMuteSupported,
 	useSetServerLLMProvider,
 	useSetServerPrompt,
 	useSetServerSTTProvider,
 	useSettings,
+	useUpdateAutoMuteAudio,
 	useUpdateCleanupPrompt,
 	useUpdateHoldHotkey,
 	useUpdateLLMProvider,
@@ -73,7 +76,7 @@ function ConnectionStatusIndicator() {
 		<Tooltip label={statusText} position="right" withArrow>
 			<div className="connection-status">
 				{isConnecting ? (
-					<Loader size={10} color="orange" />
+					<Loader size={10} color="gray" />
 				) : (
 					<span
 						className={`connection-status-dot ${isConnected ? "connected" : "disconnected"}`}
@@ -96,7 +99,7 @@ function Sidebar({
 			<header className="sidebar-header">
 				<div className="sidebar-logo">
 					<div className="sidebar-logo-icon">
-						<Mic size={16} />
+						<Logo size={16} />
 					</div>
 					<span className="sidebar-title">Voice</span>
 				</div>
@@ -212,6 +215,8 @@ function SettingsView() {
 		useAvailableProviders();
 	const { data: currentProviders } = useCurrentProviders();
 	const updateSoundEnabled = useUpdateSoundEnabled();
+	const updateAutoMuteAudio = useUpdateAutoMuteAudio();
+	const { data: isAudioMuteSupported } = useIsAudioMuteSupported();
 	const updateToggleHotkey = useUpdateToggleHotkey();
 	const updateHoldHotkey = useUpdateHoldHotkey();
 	const updateCleanupPrompt = useUpdateCleanupPrompt();
@@ -243,6 +248,10 @@ function SettingsView() {
 
 	const handleSoundToggle = (checked: boolean) => {
 		updateSoundEnabled.mutate(checked);
+	};
+
+	const handleAutoMuteToggle = (checked: boolean) => {
+		updateAutoMuteAudio.mutate(checked);
 	};
 
 	const handleToggleHotkeyChange = (config: HotkeyConfig) => {
@@ -354,7 +363,7 @@ function SettingsView() {
 							</p>
 						</div>
 						{isLoadingProviders ? (
-							<Loader size="sm" color="orange" />
+							<Loader size="sm" color="gray" />
 						) : (
 							<Select
 								data={sttProviderOptions}
@@ -380,7 +389,7 @@ function SettingsView() {
 							</p>
 						</div>
 						{isLoadingProviders ? (
-							<Loader size="sm" color="orange" />
+							<Loader size="sm" color="gray" />
 						) : (
 							<Select
 								data={llmProviderOptions}
@@ -418,9 +427,32 @@ function SettingsView() {
 								handleSoundToggle(event.currentTarget.checked)
 							}
 							disabled={isLoading}
-							color="orange"
+							color="gray"
 							size="md"
 						/>
+					</div>
+					<div className="settings-row" style={{ marginTop: 16 }}>
+						<div>
+							<p className="settings-label">Mute audio during recording</p>
+							<p className="settings-description">
+								Automatically mute system audio while dictating
+							</p>
+						</div>
+						<Tooltip
+							label="Not supported on this platform"
+							disabled={isAudioMuteSupported !== false}
+							withArrow
+						>
+							<Switch
+								checked={settings?.auto_mute_audio ?? false}
+								onChange={(event) =>
+									handleAutoMuteToggle(event.currentTarget.checked)
+								}
+								disabled={isLoading || isAudioMuteSupported === false}
+								color="gray"
+								size="md"
+							/>
+						</Tooltip>
 					</div>
 				</div>
 			</div>
@@ -449,7 +481,7 @@ function SettingsView() {
 
 				<Alert
 					icon={<AlertCircle size={16} />}
-					color="orange"
+					color="gray"
 					variant="light"
 					mt="md"
 				>
@@ -479,7 +511,7 @@ function SettingsView() {
 											padding: "20px",
 										}}
 									>
-										<Loader size="sm" color="orange" />
+										<Loader size="sm" color="gray" />
 									</div>
 								) : (
 									<>
@@ -520,7 +552,7 @@ function SettingsView() {
 												Reset to Default
 											</Button>
 											<Button
-												color="orange"
+												color="gray"
 												onClick={handleSavePrompt}
 												disabled={isLoading || !hasUnsavedChanges}
 												loading={updateCleanupPrompt.isPending}

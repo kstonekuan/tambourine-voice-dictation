@@ -130,7 +130,7 @@ export function HistoryFeed() {
 				<Button
 					variant="subtle"
 					size="compact-sm"
-					color="orange"
+					color="gray"
 					onClick={handleClearAll}
 					disabled={clearHistory.isPending}
 				>

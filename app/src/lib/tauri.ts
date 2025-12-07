@@ -33,6 +33,7 @@ interface AppSettings {
 	cleanup_prompt: string | null;
 	stt_provider: string | null;
 	llm_provider: string | null;
+	auto_mute_audio: boolean;
 }
 
 export const tauriAPI = {
@@ -92,6 +93,14 @@ export const tauriAPI = {
 
 	async updateLLMProvider(provider: string | null): Promise<void> {
 		return invoke("update_llm_provider", { provider });
+	},
+
+	async updateAutoMuteAudio(enabled: boolean): Promise<void> {
+		return invoke("update_auto_mute_audio", { enabled });
+	},
+
+	async isAudioMuteSupported(): Promise<boolean> {
+		return invoke("is_audio_mute_supported");
 	},
 
 	// History API

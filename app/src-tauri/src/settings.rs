@@ -51,6 +51,10 @@ pub struct AppSettings {
     /// Selected LLM provider (None = use server default)
     #[serde(default)]
     pub llm_provider: Option<String>,
+
+    /// Whether to automatically mute system audio during recording
+    #[serde(default)]
+    pub auto_mute_audio: bool,
 }
 
 fn default_toggle_hotkey() -> HotkeyConfig {
@@ -81,6 +85,7 @@ impl Default for AppSettings {
             cleanup_prompt: None,
             stt_provider: None,
             llm_provider: None,
+            auto_mute_audio: false,
         }
     }
 }
@@ -232,6 +237,18 @@ impl SettingsManager {
                 .write()
                 .map_err(|e| format!("Failed to write settings: {}", e))?;
             settings.llm_provider = provider;
+        }
+        self.save()
+    }
+
+    /// Update the auto mute audio setting
+    pub fn update_auto_mute_audio(&self, enabled: bool) -> Result<(), String> {
+        {
+            let mut settings = self
+                .settings
+                .write()
+                .map_err(|e| format!("Failed to write settings: {}", e))?;
+            settings.auto_mute_audio = enabled;
         }
         self.save()
     }

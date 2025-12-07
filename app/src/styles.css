@@ -11,9 +11,9 @@
 	--text-primary: #ffffff;
 	--text-secondary: #a0a0a0;
 	--text-muted: #666666;
-	--accent-primary: #f59e0b;
-	--accent-glow: rgba(245, 158, 11, 0.15);
-	--accent-hover: #fbbf24;
+	--accent-primary: #a0a0a0;
+	--accent-glow: rgba(160, 160, 160, 0.15);
+	--accent-hover: #c0c0c0;
 }
 
 * {

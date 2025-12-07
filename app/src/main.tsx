@@ -9,7 +9,7 @@ import "./styles.css";
 const queryClient = new QueryClient();
 
 const darkTheme = createTheme({
-	primaryColor: "orange",
+	primaryColor: "gray",
 	fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif",
 	headings: {
 		fontFamily: "'Sora', 'DM Sans', sans-serif",

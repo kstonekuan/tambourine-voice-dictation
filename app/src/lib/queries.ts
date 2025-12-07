@@ -65,6 +65,24 @@ export function useUpdateSoundEnabled() {
 	});
 }
 
+export function useUpdateAutoMuteAudio() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (enabled: boolean) => tauriAPI.updateAutoMuteAudio(enabled),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["settings"] });
+		},
+	});
+}
+
+export function useIsAudioMuteSupported() {
+	return useQuery({
+		queryKey: ["audioMuteSupported"],
+		queryFn: () => tauriAPI.isAudioMuteSupported(),
+		staleTime: Number.POSITIVE_INFINITY,
+	});
+}
+
 export function useUpdateCleanupPrompt() {
 	const queryClient = useQueryClient();
 	return useMutation({
