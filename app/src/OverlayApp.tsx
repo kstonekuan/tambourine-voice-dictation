@@ -61,6 +61,12 @@ function RecordingControl() {
 		startConnecting,
 	} = useRecordingStore();
 	const containerRef = useRef<HTMLDivElement>(null);
+
+	// Refs for click vs drag detection
+	const isDraggingRef = useRef<boolean>(false);
+	const mouseDownPositionRef = useRef<{ x: number; y: number } | null>(null);
+	const hasDragStartedRef = useRef<boolean>(false);
+
 	const { data: serverUrl } = useServerUrl();
 	const { data: settings } = useSettings();
 
@@ -353,12 +359,71 @@ function RecordingControl() {
 		}
 	}, [state, onStartRecording, onStopRecording]);
 
-	// Drag handler for unfocused window (data-tauri-drag-region doesn't work on unfocused windows)
-	const handleMouseDown = useCallback((event: React.MouseEvent) => {
-		if (event.button === 0) {
+	// Mouse move handler for drag detection
+	const handleMouseMove = useCallback((event: MouseEvent) => {
+		if (!mouseDownPositionRef.current || hasDragStartedRef.current) {
+			return;
+		}
+
+		// Calculate distance moved from initial position
+		const deltaX = event.clientX - mouseDownPositionRef.current.x;
+		const deltaY = event.clientY - mouseDownPositionRef.current.y;
+		const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+		// If movement exceeds threshold, start dragging
+		const DRAG_THRESHOLD = 5;
+		if (distance > DRAG_THRESHOLD) {
+			hasDragStartedRef.current = true;
+			isDraggingRef.current = true;
 			tauriAPI.startDragging();
 		}
 	}, []);
+
+	// Mouse up handler to cleanup listeners
+	const handleMouseUp = useCallback(() => {
+		// Clean up window event listeners
+		window.removeEventListener("mousemove", handleMouseMove);
+		window.removeEventListener("mouseup", handleMouseUp);
+
+		// Reset drag state
+		if (hasDragStartedRef.current) {
+			isDraggingRef.current = false;
+		}
+
+		// Reset tracking refs
+		mouseDownPositionRef.current = null;
+		hasDragStartedRef.current = false;
+	}, [handleMouseMove]);
+
+	// Drag handler for unfocused window (data-tauri-drag-region doesn't work on unfocused windows)
+	const handleMouseDown = useCallback(
+		(event: React.MouseEvent) => {
+			if (event.button !== 0) return; // Only handle left clicks
+
+			// Record initial position
+			mouseDownPositionRef.current = {
+				x: event.clientX,
+				y: event.clientY,
+			};
+
+			// Reset drag state
+			isDraggingRef.current = false;
+			hasDragStartedRef.current = false;
+
+			// Attach window listeners to track movement
+			window.addEventListener("mousemove", handleMouseMove);
+			window.addEventListener("mouseup", handleMouseUp);
+		},
+		[handleMouseMove, handleMouseUp],
+	);
+
+	// Cleanup effect to remove window listeners on unmount
+	useEffect(() => {
+		return () => {
+			window.removeEventListener("mousemove", handleMouseMove);
+			window.removeEventListener("mouseup", handleMouseUp);
+		};
+	}, [handleMouseMove, handleMouseUp]);
 
 	return (
 		<div
