@@ -85,17 +85,24 @@ def set_service_switchers(
     _settings = settings
 
     # Set initial active providers based on settings
+    # Pipecat uses the first service in the list as default, so we only override if specified
     if stt_services:
-        default_stt = STTProvider(settings.default_stt_provider)
-        _current_stt_provider = (
-            default_stt if default_stt in stt_services else next(iter(stt_services.keys()))
-        )
+        if settings.default_stt_provider:
+            default_stt = STTProvider(settings.default_stt_provider)
+            _current_stt_provider = (
+                default_stt if default_stt in stt_services else next(iter(stt_services.keys()))
+            )
+        else:
+            _current_stt_provider = next(iter(stt_services.keys()))
 
     if llm_services:
-        default_llm = LLMProvider(settings.default_llm_provider)
-        _current_llm_provider = (
-            default_llm if default_llm in llm_services else next(iter(llm_services.keys()))
-        )
+        if settings.default_llm_provider:
+            default_llm = LLMProvider(settings.default_llm_provider)
+            _current_llm_provider = (
+                default_llm if default_llm in llm_services else next(iter(llm_services.keys()))
+            )
+        else:
+            _current_llm_provider = next(iter(llm_services.keys()))
 
 
 class PromptUpdate(BaseModel):

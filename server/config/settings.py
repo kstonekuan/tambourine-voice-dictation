@@ -26,9 +26,9 @@ class Settings(BaseSettings):
     cerebras_api_key: str | None = Field(None, description="Cerebras API key for LLM")
     groq_api_key: str | None = Field(None, description="Groq API key for LLM")
 
-    # Default providers (used when no preference is set)
-    default_stt_provider: str = Field("cartesia", description="Default STT provider")
-    default_llm_provider: str = Field("cerebras", description="Default LLM provider")
+    # Default providers (optional)
+    default_stt_provider: str | None = Field(None, description="Default STT provider")
+    default_llm_provider: str | None = Field(None, description="Default LLM provider")
 
     # Logging
     log_level: str = Field("INFO", description="Logging level")

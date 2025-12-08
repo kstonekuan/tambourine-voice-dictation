@@ -180,30 +180,23 @@ async def run_server(host: str, port: int, settings: Settings) -> None:
         strategy_type=ServiceSwitcherStrategyManual,
     )
 
-    # Determine default providers
-    default_stt = STTProvider(settings.default_stt_provider)
-    default_llm = LLMProvider(settings.default_llm_provider)
+    # Set active provider to default (only if explicitly configured)
+    # Pipecat uses the first service in the list as default, so we only override if specified
+    if settings.default_stt_provider:
+        default_stt = STTProvider(settings.default_stt_provider)
+        if default_stt in stt_services:
+            stt_switcher.strategy.active_service = stt_services[default_stt]
+            logger.info(f"Default STT provider: {default_stt.value}")
+        else:
+            logger.warning(f"Default STT provider '{default_stt.value}' not available")
 
-    # Set active provider to default (if available)
-    if default_stt in stt_services:
-        stt_switcher.strategy.active_service = stt_services[default_stt]
-        logger.info(f"Default STT provider: {default_stt.value}")
-    else:
-        first_stt = next(iter(stt_services))
-        logger.warning(
-            f"Default STT provider '{default_stt.value}' not available, "
-            f"using first available: {first_stt.value}"
-        )
-
-    if default_llm in llm_services:
-        llm_switcher.strategy.active_service = llm_services[default_llm]
-        logger.info(f"Default LLM provider: {default_llm.value}")
-    else:
-        first_llm = next(iter(llm_services))
-        logger.warning(
-            f"Default LLM provider '{default_llm.value}' not available, "
-            f"using first available: {first_llm.value}"
-        )
+    if settings.default_llm_provider:
+        default_llm = LLMProvider(settings.default_llm_provider)
+        if default_llm in llm_services:
+            llm_switcher.strategy.active_service = llm_services[default_llm]
+            logger.info(f"Default LLM provider: {default_llm.value}")
+        else:
+            logger.warning(f"Default LLM provider '{default_llm.value}' not available")
 
     # Initialize processors
     debug_input = DebugFrameProcessor(name="input")
