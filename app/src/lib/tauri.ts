@@ -195,6 +195,7 @@ const CONFIG_API_URL = "http://127.0.0.1:8765";
 export interface DefaultSectionsResponse {
 	main: string;
 	advanced: string;
+	dictionary: string;
 }
 
 interface SetPromptResponse {

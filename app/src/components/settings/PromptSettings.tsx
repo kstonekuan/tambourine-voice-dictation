@@ -55,7 +55,9 @@ export function PromptSettings() {
 			setAdvancedContent(sections.advanced.content ?? defaultSections.advanced);
 
 			setDictionaryEnabled(sections.dictionary.enabled);
-			setDictionaryContent(sections.dictionary.content ?? "");
+			setDictionaryContent(
+				sections.dictionary.content ?? defaultSections.dictionary,
+			);
 		}
 	}, [settings, defaultSections]);
 
@@ -91,7 +93,10 @@ export function PromptSettings() {
 			},
 			dictionary: {
 				enabled: overrides?.dictionaryEnabled ?? dictionaryEnabled,
-				content: currentDictionaryContent || null,
+				content:
+					currentDictionaryContent === defaultSections?.dictionary
+						? null
+						: currentDictionaryContent || null,
 			},
 		};
 	};
@@ -151,7 +156,8 @@ export function PromptSettings() {
 	};
 
 	const handleResetDictionary = () => {
-		setDictionaryContent("");
+		const defaultContent = defaultSections?.dictionary ?? "";
+		setDictionaryContent(defaultContent);
 		saveAllSections(buildSections({ dictionaryContent: null }));
 	};
 
@@ -205,13 +211,8 @@ export function PromptSettings() {
 							description="Custom word mappings for technical terms"
 							enabled={dictionaryEnabled}
 							initialContent={dictionaryContent}
-							defaultContent=""
+							defaultContent={defaultSections?.dictionary ?? ""}
 							hasCustom={dictionaryHasCustom}
-							helpText='Add words or phrases, one per line. Use "source -> target" for explicit mappings, or just the word for phonetic correction.'
-							placeholder={`eleven men -> LLM\nLLM\nAnthropic\nAPI`}
-							resetLabel="Clear"
-							minRows={4}
-							maxRows={10}
 							onToggle={handleDictionaryToggle}
 							onSave={handleSaveDictionary}
 							onReset={handleResetDictionary}

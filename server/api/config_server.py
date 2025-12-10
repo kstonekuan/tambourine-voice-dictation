@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from processors.llm_cleanup import (
     ADVANCED_PROMPT_DEFAULT,
+    DICTIONARY_PROMPT_DEFAULT,
     MAIN_PROMPT_DEFAULT,
     combine_prompt_sections,
 )
@@ -145,6 +146,7 @@ class DefaultSectionsResponse(BaseModel):
 
     main: str
     advanced: str
+    dictionary: str
 
 
 class SetPromptResponse(BaseModel):
@@ -160,6 +162,7 @@ async def get_default_sections() -> DefaultSectionsResponse:
     return DefaultSectionsResponse(
         main=MAIN_PROMPT_DEFAULT,
         advanced=ADVANCED_PROMPT_DEFAULT,
+        dictionary=DICTIONARY_PROMPT_DEFAULT,
     )
 
 

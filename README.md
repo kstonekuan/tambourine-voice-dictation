@@ -37,7 +37,7 @@ Customizable AI powered voice dictation tool. Open-source alternative to [Wispr 
 ## Features
 
 - **Dual-Mode Recording**
-  - Hold-to-record: `Ctrl+Alt+.` - Hold to record, release to stop
+  - Hold-to-record: `` Ctrl+Alt+` `` - Hold to record, release to stop
   - Toggle mode: `Ctrl+Alt+Space` - Press to start, press again to stop
 - **Real-time Speech-to-Text** - Fast transcription with configurable STT providers
 - **LLM Text Cleanup** - Removes filler words, fixes grammar using configurable LLM
@@ -46,6 +46,7 @@ Customizable AI powered voice dictation tool. Open-source alternative to [Wispr 
 - **Recording Overlay** - Visual indicator in bottom-right corner during dictation
 - **System Tray Integration** - Click to show/hide, right-click menu
 - **Transcription History** - View and copy previous dictations
+- **Paste Last Transcription** - Re-type previous dictation with `Ctrl+Alt+.`
 - **Customizable Hotkeys** - Configure shortcuts to your preference
 - **Device Selection** - Choose your preferred microphone
 - **Sound Feedback** - Audio cues for recording start/stop
@@ -57,18 +58,18 @@ Customizable AI powered voice dictation tool. Open-source alternative to [Wispr 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      Tauri App (app/)                       │
-│  - Global hotkeys (Ctrl+Alt+Space, Ctrl+Alt+.)              │
+│  - Global hotkeys (Ctrl+Alt+Space, Ctrl+Alt+`)              │
 │  - Rust backend for keyboard and audio controls             │
-│  - React frontend with Pipecat client                       │
+│  - React frontend with SmallWebRTC client                   │
 │  - System tray with show/hide toggle                        │
 └───────────────────┬─────────────────────┬───────────────────┘
                     │                     │
-   WebSocket :8765  │                     │  HTTP :8766
+      WebRTC :8765  │                     │  HTTP :8766
                     ▼                     ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  Python Server (server/)                    │
 ├─────────────────────────────┬───────────────────────────────┤
-│     Pipecat WebSocket       │       FastAPI Config          │
+│     Pipecat SmallWebRTC     │       FastAPI Config          │
 │  - Audio processing         │  - Provider switching         │
 │  - STT (Cartesia,           │  - Prompt customization       │
 │    Deepgram, AssemblyAI)    │  - Runtime settings           │
@@ -135,7 +136,7 @@ pnpm dev
 2. Start the app (`pnpm dev`)
 3. Use either shortcut:
    - **Toggle**: Press `Ctrl+Alt+Space` to start, press again to stop
-   - **Hold**: Hold `Ctrl+Alt+.` while speaking, release to stop
+   - **Hold**: Hold `` Ctrl+Alt+` `` while speaking, release to stop
 4. Your cleaned text is typed at your cursor
 
 ## Server Commands
@@ -199,13 +200,13 @@ pnpm build         # Build for current platform
 | ----------------------- | --------------------- | ----------- |
 | `DEFAULT_STT_PROVIDER`  | Default STT provider  | —           |
 | `DEFAULT_LLM_PROVIDER`  | Default LLM provider  | —           |
-| `DICTATION_SERVER_HOST` | WebSocket server host | `127.0.0.1` |
-| `DICTATION_SERVER_PORT` | WebSocket server port | `8765`      |
+| `DICTATION_SERVER_HOST` | Server host           | `127.0.0.1` |
+| `DICTATION_SERVER_PORT` | Server port           | `8765`      |
 | `LOG_LEVEL`             | Logging level         | `INFO`      |
 
 ### App Configuration
 
-The app connects to `ws://localhost:8765` by default. Settings are persisted locally and include:
+The app connects to `localhost:8765` by default via WebRTC. Settings are persisted locally and include:
 
 - **Providers** - Select active STT and LLM providers from available options
 - **Audio** - Microphone selection, sound feedback, auto-mute during recording
@@ -222,7 +223,7 @@ The app connects to `ws://localhost:8765` by default. Settings are persisted loc
 
 ## Acknowledgments
 
-This project is powered by [Pipecat](https://github.com/pipecat-ai/pipecat), an open-source framework for building voice and multimodal AI pipelines. Pipecat's modular architecture makes it easy to swap STT providers, LLMs, and add custom processing stages—enabling the customizability that sets this project apart from proprietary alternatives.
+Built with [Tauri](https://tauri.app/) for the cross-platform desktop app and [Pipecat](https://github.com/pipecat-ai/pipecat) for the modular voice AI pipeline.
 
 ## License
 

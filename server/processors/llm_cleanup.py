@@ -22,7 +22,7 @@ from utils.logger import logger
 MAIN_PROMPT_DEFAULT = """You are a dictation cleanup assistant. Your task is to clean up transcribed speech.
 
 ## Core Rules
-- Remove filler words (um, uh, like, you know, basically, literally, sort of, kind of)
+- Remove filler words (um, uh, like, you know, basically, etc.)
 - Fix grammar and punctuation
 - Capitalize sentences properly
 - Keep the original meaning and tone intact
@@ -86,56 +86,22 @@ Example:
   2. Send the presentation
   3. Review feedback" """
 
-# Dictionary prompt section - Personal word mappings header
+# Dictionary prompt section - Personal word mappings
 DICTIONARY_PROMPT_DEFAULT = """## Personal Dictionary
-Apply these corrections for technical terms and proper nouns:"""
+Apply these corrections for technical terms, proper nouns, and custom words.
 
+Entries can be in various formats - interpret flexibly:
+- Explicit mappings: "ant row pick -> Anthropic" or "ant row pic = Anthropic"
+- Single terms to recognize: Just "LLM" (correct phonetic mismatches)
+- Natural descriptions: "The name 'Claude' should always be capitalized"
 
-def format_dictionary_section(dictionary_content: str) -> str:
-    """Format dictionary entries into a prompt section.
+When you hear terms that sound like entries below, use the correct spelling/form.
 
-    Supports two formats:
-    1. Explicit mapping: "source -> target" (always replace)
-    2. Single word: "term" (recognize phonetic variations)
-    """
-    if not dictionary_content or not dictionary_content.strip():
-        return ""
-
-    lines = dictionary_content.strip().split("\n")
-    explicit_mappings: list[str] = []
-    recognized_terms: list[str] = []
-
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-
-        if " -> " in line:
-            # Explicit mapping
-            parts = line.split(" -> ", 1)
-            if len(parts) == 2:
-                source, target = parts[0].strip(), parts[1].strip()
-                if source and target:
-                    explicit_mappings.append(f'- "{source}" → "{target}"')
-        else:
-            # Single word - recognized term
-            if line:
-                recognized_terms.append(f'- "{line}"')
-
-    if not explicit_mappings and not recognized_terms:
-        return ""
-
-    result = DICTIONARY_PROMPT_DEFAULT + "\n"
-
-    if explicit_mappings:
-        result += "\nExplicit mappings (always replace):\n"
-        result += "\n".join(explicit_mappings)
-
-    if recognized_terms:
-        result += "\n\nRecognized terms (correct phonetic mismatches - use context to determine when misheard words should be these terms):\n"
-        result += "\n".join(recognized_terms)
-
-    return result
+### Entries:
+Tambourine
+LLM
+ant row pick -> Anthropic
+Claude"""
 
 
 def combine_prompt_sections(
@@ -157,10 +123,9 @@ def combine_prompt_sections(
         content = advanced_content if advanced_content else ADVANCED_PROMPT_DEFAULT
         parts.append(content)
 
-    if dictionary_enabled and dictionary_content:
-        dictionary_section = format_dictionary_section(dictionary_content)
-        if dictionary_section:
-            parts.append(dictionary_section)
+    if dictionary_enabled:
+        content = dictionary_content if dictionary_content else DICTIONARY_PROMPT_DEFAULT
+        parts.append(content)
 
     return "\n\n".join(parts)
 
