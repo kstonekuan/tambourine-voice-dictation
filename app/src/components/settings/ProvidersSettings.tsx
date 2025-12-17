@@ -66,11 +66,17 @@ export function ProvidersSettings() {
 	const sttCloudProviders =
 		availableProviders?.stt
 			.filter((p) => !p.is_local)
-			.map((p) => ({ value: p.value, label: p.label })) ?? [];
+			.map((p) => ({
+				value: p.value,
+				label: p.model ? `${p.label} (${p.model})` : p.label,
+			})) ?? [];
 	const sttLocalProviders =
 		availableProviders?.stt
 			.filter((p) => p.is_local)
-			.map((p) => ({ value: p.value, label: p.label })) ?? [];
+			.map((p) => ({
+				value: p.value,
+				label: p.model ? `${p.label} (${p.model})` : p.label,
+			})) ?? [];
 	const sttProviderOptions = [
 		{ group: "Cloud", items: sttCloudProviders },
 		{ group: "Local", items: sttLocalProviders },
@@ -79,11 +85,17 @@ export function ProvidersSettings() {
 	const llmCloudProviders =
 		availableProviders?.llm
 			.filter((p) => !p.is_local)
-			.map((p) => ({ value: p.value, label: p.label })) ?? [];
+			.map((p) => ({
+				value: p.value,
+				label: p.model ? `${p.label} (${p.model})` : p.label,
+			})) ?? [];
 	const llmLocalProviders =
 		availableProviders?.llm
 			.filter((p) => p.is_local)
-			.map((p) => ({ value: p.value, label: p.label })) ?? [];
+			.map((p) => ({
+				value: p.value,
+				label: p.model ? `${p.label} (${p.model})` : p.label,
+			})) ?? [];
 	const llmProviderOptions = [
 		{ group: "Cloud", items: llmCloudProviders },
 		{ group: "Local", items: llmLocalProviders },

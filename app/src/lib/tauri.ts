@@ -390,6 +390,7 @@ interface ProviderInfo {
 	value: string;
 	label: string;
 	is_local: boolean;
+	model?: string;
 }
 
 interface AvailableProvidersResponse {

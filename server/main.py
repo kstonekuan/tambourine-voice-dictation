@@ -315,7 +315,7 @@ app = FastAPI(title="Tambourine Server", lifespan=lifespan)
 
 # CORS for Tauri frontend
 app.add_middleware(
-    CORSMiddleware,
+    CORSMiddleware,  # type: ignore[invalid-argument-type]
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],

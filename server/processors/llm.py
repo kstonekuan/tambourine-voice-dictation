@@ -2,6 +2,10 @@
 
 from typing import Any
 
+from openai.types.chat import (
+    ChatCompletionSystemMessageParam,
+    ChatCompletionUserMessageParam,
+)
 from pipecat.frames.frames import (
     Frame,
     LLMFullResponseEndFrame,
@@ -232,8 +236,8 @@ class TranscriptionToLLMConverter(FrameProcessor):
                 # Create OpenAI-compatible context with formatting prompt
                 context = OpenAILLMContext(
                     messages=[
-                        {"role": "system", "content": self.system_prompt},
-                        {"role": "user", "content": text},
+                        ChatCompletionSystemMessageParam(role="system", content=self.system_prompt),
+                        ChatCompletionUserMessageParam(role="user", content=text),
                     ]
                 )
 

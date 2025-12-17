@@ -31,24 +31,24 @@ from services.provider_registry import (
 # Create router for config endpoints
 config_router = APIRouter()
 
-# Store available providers (set at startup, static during runtime)
-_available_stt_providers: list[STTProviderId] = []
-_available_llm_providers: list[LLMProviderId] = []
+# Store available services (set at startup, static during runtime)
+_available_stt_services: dict[STTProviderId, Any] = {}
+_available_llm_services: dict[LLMProviderId, Any] = {}
 
 
 def set_available_providers(
     stt_services: dict[STTProviderId, Any],
     llm_services: dict[LLMProviderId, Any],
 ) -> None:
-    """Set the list of available providers (called once at startup).
+    """Set the available services (called once at startup).
 
     Args:
         stt_services: Dictionary of available STT services
         llm_services: Dictionary of available LLM services
     """
-    global _available_stt_providers, _available_llm_providers
-    _available_stt_providers = list(stt_services.keys())
-    _available_llm_providers = list(llm_services.keys())
+    global _available_stt_services, _available_llm_services
+    _available_stt_services = stt_services
+    _available_llm_services = llm_services
 
 
 # =============================================================================
@@ -85,6 +85,7 @@ class ProviderInfo(BaseModel):
     value: str
     label: str
     is_local: bool
+    model: str | None = None
 
 
 class AvailableProvidersResponse(BaseModel):
@@ -108,8 +109,11 @@ async def get_available_providers() -> AvailableProvidersResponse:
             value=provider_id.value,
             label=stt_labels.get(provider_id, provider_id.value),
             is_local=provider_id == STTProviderId.WHISPER,
+            model=service.model_name
+            if hasattr(service, "model_name") and service.model_name
+            else None,
         )
-        for provider_id in _available_stt_providers
+        for provider_id, service in _available_stt_services.items()
     ]
 
     llm_providers = [
@@ -117,8 +121,11 @@ async def get_available_providers() -> AvailableProvidersResponse:
             value=provider_id.value,
             label=llm_labels.get(provider_id, provider_id.value),
             is_local=provider_id == LLMProviderId.OLLAMA,
+            model=service.model_name
+            if hasattr(service, "model_name") and service.model_name
+            else None,
         )
-        for provider_id in _available_llm_providers
+        for provider_id, service in _available_llm_services.items()
     ]
 
     return AvailableProvidersResponse(stt=stt_providers, llm=llm_providers)
