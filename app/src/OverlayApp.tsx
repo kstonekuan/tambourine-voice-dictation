@@ -506,8 +506,7 @@ function RecordingControl() {
 				height: "fit-content",
 				backgroundColor: "rgba(0, 0, 0, 0.9)",
 				borderRadius: 12,
-				// Overlay border - adjust thickness here (e.g., "2px", "3px")
-				border: "1px solid rgba(128, 128, 128, 0.5)",
+				border: "2px solid rgba(128, 128, 128, 0.9)",
 				padding: 2,
 				cursor: "grab",
 				userSelect: "none",

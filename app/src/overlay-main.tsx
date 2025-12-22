@@ -5,7 +5,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import OverlayApp from "./OverlayApp";
 
-// Styles are imported in OverlayApp.tsx via app.css
+// Styles are imported in OverlayApp.tsx via overlay-global.css
 
 const queryClient = new QueryClient({
 	defaultOptions: {

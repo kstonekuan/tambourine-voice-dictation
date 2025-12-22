@@ -1,4 +1,7 @@
-"""Custom logging observer for pipeline events."""
+"""Custom logging observer for pipeline events.
+
+Filters frames by source to avoid duplicate logs as frames propagate through the pipeline.
+"""
 
 from pipecat.frames.frames import (
     InputAudioRawFrame,
@@ -16,6 +19,8 @@ from pipecat.observers.base_observer import BaseObserver, FramePushed
 from pipecat.processors.frameworks.rtvi import RTVIServerMessageFrame
 from pipecat.services.llm_service import LLMService
 from pipecat.services.stt_service import STTService
+from pipecat.transports.base_input import BaseInputTransport
+from pipecat.transports.base_output import BaseOutputTransport
 
 from utils.logger import logger
 
@@ -23,13 +28,12 @@ from utils.logger import logger
 class PipelineLogObserver(BaseObserver):
     """Observer that logs key pipeline events at INFO level.
 
-    Logs at INFO level:
-    - Pipeline start (StartFrame)
-    - Audio frames (first 3 and every 500th)
-    - Transcription results from STT
-    - Speech start/stop from VAD
-    - LLM response text (aggregated)
-    - RTVI server messages sent to client
+    Uses source filtering to log each event only once:
+    - StartFrame: logged when reaching output transport (end of pipeline)
+    - Audio/Speech frames: logged when from input transport (origin)
+    - Transcription: logged when from STT service (origin)
+    - LLM response: logged when from LLM service (origin)
+    - RTVI messages: logged when from output transport (being sent)
 
     Logs at DEBUG level:
     - Other frames (excluding noisy UserSpeakingFrame and MetricsFrame)
@@ -51,12 +55,12 @@ class PipelineLogObserver(BaseObserver):
         src = data.source
         frame = data.frame
 
-        # Log pipeline start
-        if isinstance(frame, StartFrame):
+        # Log pipeline start when it reaches the output transport (end of pipeline)
+        if isinstance(frame, StartFrame) and isinstance(src, BaseOutputTransport):
             logger.info("Pipeline started")
 
-        # Log audio frames (first few and periodic)
-        elif isinstance(frame, InputAudioRawFrame):
+        # Log audio frames from input transport (first few and periodic)
+        elif isinstance(frame, InputAudioRawFrame) and isinstance(src, BaseInputTransport):
             self._audio_frame_count += 1
             if self._audio_frame_count <= 3 or self._audio_frame_count % 500 == 0:
                 logger.info(
@@ -64,17 +68,17 @@ class PipelineLogObserver(BaseObserver):
                     f"{len(frame.audio)} bytes, {frame.sample_rate}Hz, {frame.num_channels}ch"
                 )
 
-        # Log transcription from STT
+        # Log transcription from STT service
         elif isinstance(frame, TranscriptionFrame) and isinstance(src, STTService):
             logger.info(f"TRANSCRIPTION: '{frame.text}'")
 
-        # Log speech start/stop
-        elif isinstance(frame, UserStartedSpeakingFrame):
+        # Log speech start/stop from input transport (where VAD runs)
+        elif isinstance(frame, UserStartedSpeakingFrame) and isinstance(src, BaseInputTransport):
             logger.info("Speech started")
-        elif isinstance(frame, UserStoppedSpeakingFrame):
+        elif isinstance(frame, UserStoppedSpeakingFrame) and isinstance(src, BaseInputTransport):
             logger.info("Speech stopped")
 
-        # Accumulate and log LLM response
+        # Accumulate and log LLM response from LLM service
         elif isinstance(frame, LLMFullResponseStartFrame) and isinstance(src, LLMService):
             self._llm_accumulator = ""
             self._is_accumulating = True
@@ -86,8 +90,8 @@ class PipelineLogObserver(BaseObserver):
                 logger.info(f"Cleaned text: '{self._llm_accumulator.strip()}'")
             self._llm_accumulator = ""
 
-        # Log RTVI server messages sent to client
-        elif isinstance(frame, RTVIServerMessageFrame):
+        # Log RTVI server messages when sent from output transport
+        elif isinstance(frame, RTVIServerMessageFrame) and isinstance(src, BaseOutputTransport):
             logger.info(f"Sending to client: {frame.data}")
 
         # Log other frames at debug level (skip noisy ones)
