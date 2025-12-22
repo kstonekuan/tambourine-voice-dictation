@@ -18,7 +18,7 @@ import {
 import { useRefreshServerQueriesOnConnect, useSettings } from "./lib/queries";
 import { type ConfigResponse, type HotkeyConfig, tauriAPI } from "./lib/tauri";
 import { useRecordingStore } from "./stores/recordingStore";
-import "./styles.css";
+import "./app-main.css";
 
 type View = "home" | "settings";
 

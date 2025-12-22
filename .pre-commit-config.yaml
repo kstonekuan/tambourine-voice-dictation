@@ -8,12 +8,20 @@ repos:
         args: [--fix]
       - id: ruff-format
 
+  # Python - uv lockfile
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.9.18
+    hooks:
+      - id: uv-lock
+        files: server/pyproject.toml
+        args: [--project, server]
+
   # Python - Type checking and tests
   - repo: local
     hooks:
       - id: ty-check
         name: ty type check
-        entry: uv run ty check
+        entry: uv run --directory server ty check
         language: system
         types: [python]
         pass_filenames: false
@@ -21,7 +29,7 @@ repos:
 
       - id: pytest
         name: pytest
-        entry: sh -c 'cd server && uv run pytest'
+        entry: uv run --directory server pytest
         language: system
         types: [python]
         pass_filenames: false

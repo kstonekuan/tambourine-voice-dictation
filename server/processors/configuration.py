@@ -14,10 +14,10 @@ from pipecat.frames.frames import (
     Frame,
     InputTransportMessageFrame,
     ManuallySwitchServiceFrame,
-    OutputTransportMessageFrame,
     StartFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
+from pipecat.processors.frameworks.rtvi import RTVIServerMessageFrame
 from pydantic import BaseModel, ValidationError
 
 from services.provider_registry import LLMProviderId, STTProviderId
@@ -342,20 +342,15 @@ class ConfigurationProcessor(FrameProcessor):
             setting: The setting that was updated
             value: The new value
         """
-        message = {
-            "label": "rtvi-ai",
-            "type": "server-message",
-            "data": {
+        frame = RTVIServerMessageFrame(
+            data={
                 "type": "config-updated",
                 "setting": setting,
                 "value": value,
                 "success": True,
-            },
-        }
-        await self.push_frame(
-            OutputTransportMessageFrame(message=message),
-            FrameDirection.DOWNSTREAM,
+            }
         )
+        await self.push_frame(frame, FrameDirection.DOWNSTREAM)
 
     async def _send_config_error(self, setting: str, error: str) -> None:
         """Send a configuration error message to the client.
@@ -364,17 +359,12 @@ class ConfigurationProcessor(FrameProcessor):
             setting: The setting that failed to update
             error: The error message
         """
-        message = {
-            "label": "rtvi-ai",
-            "type": "server-message",
-            "data": {
+        frame = RTVIServerMessageFrame(
+            data={
                 "type": "config-error",
                 "setting": setting,
                 "error": error,
-            },
-        }
-        await self.push_frame(
-            OutputTransportMessageFrame(message=message),
-            FrameDirection.DOWNSTREAM,
+            }
         )
+        await self.push_frame(frame, FrameDirection.DOWNSTREAM)
         logger.warning(f"Config error for {setting}: {error}")

@@ -8,7 +8,7 @@ at startup instead of runtime failures.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
 # Direct imports from pipecat - type checked at import time
 from pipecat.services.anthropic.llm import AnthropicLLMService
@@ -218,7 +218,7 @@ class LLMProviderConfig:
 # STT Provider Registry
 # =============================================================================
 
-STT_PROVIDERS: dict[STTProviderId, STTProviderConfig] = {
+STT_PROVIDERS: Final[dict[STTProviderId, STTProviderConfig]] = {
     STTProviderId.ASSEMBLYAI: STTProviderConfig(
         provider_id=STTProviderId.ASSEMBLYAI,
         display_name="AssemblyAI",
@@ -295,7 +295,7 @@ STT_PROVIDERS: dict[STTProviderId, STTProviderConfig] = {
 # LLM Provider Registry
 # =============================================================================
 
-LLM_PROVIDERS: dict[LLMProviderId, LLMProviderConfig] = {
+LLM_PROVIDERS: Final[dict[LLMProviderId, LLMProviderConfig]] = {
     LLMProviderId.ANTHROPIC: LLMProviderConfig(
         provider_id=LLMProviderId.ANTHROPIC,
         display_name="Anthropic Claude",

@@ -11,31 +11,23 @@ Usage:
 
 import asyncio
 from contextlib import asynccontextmanager
-from typing import Annotated, Any, cast
+from dataclasses import dataclass
+from typing import Annotated, Any, Final, cast
 
 import typer
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from pipecat.audio.vad.silero import SileroVADAnalyzer
-from pipecat.frames.frames import (
-    Frame,
-    InputAudioRawFrame,
-    MetricsFrame,
-    OutputTransportMessageFrame,
-    StartFrame,
-    TranscriptionFrame,
-    UserSpeakingFrame,
-    UserStartedSpeakingFrame,
-    UserStoppedSpeakingFrame,
-)
+from pipecat.frames.frames import HeartbeatFrame
+from pipecat.observers.loggers.user_bot_latency_log_observer import UserBotLatencyLogObserver
 from pipecat.pipeline.llm_switcher import LLMSwitcher
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.service_switcher import ServiceSwitcher, ServiceSwitcherStrategyManual
 from pipecat.pipeline.task import PipelineParams, PipelineTask
-from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
+from pipecat.processors.frameworks.rtvi import RTVIObserver
 from pipecat.transports.base_transport import TransportParams
 from pipecat.transports.smallwebrtc.connection import IceServer, SmallWebRTCConnection
 from pipecat.transports.smallwebrtc.request_handler import (
@@ -44,12 +36,11 @@ from pipecat.transports.smallwebrtc.request_handler import (
     SmallWebRTCRequestHandler,
 )
 from pipecat.transports.smallwebrtc.transport import SmallWebRTCTransport
-from pydantic import BaseModel
 
-from api.config_server import config_router, set_available_providers
+from api.config_server import config_router
 from config.settings import Settings
 from processors.configuration import ConfigurationProcessor
-from processors.llm import LLMResponseToRTVIConverter, TranscriptionToLLMConverter
+from processors.llm import TranscriptionToLLMConverter
 from processors.transcription_buffer import TranscriptionBufferProcessor
 from services.providers import (
     LLMProviderId,
@@ -58,123 +49,44 @@ from services.providers import (
     create_all_available_stt_services,
 )
 from utils.logger import configure_logging
+from utils.observers import PipelineLogObserver
 
 # ICE servers for WebRTC NAT traversal
-ice_servers = [
+ICE_SERVERS: Final[list[IceServer]] = [
     IceServer(urls="stun:stun.l.google.com:19302"),
 ]
 
-# SmallWebRTC request handler - manages connection lifecycle
-small_webrtc_handler = SmallWebRTCRequestHandler(ice_servers=ice_servers)
 
-# Shared state for service instances (created once at startup)
-_settings: Settings | None = None
-_stt_services: dict[STTProviderId, Any] | None = None
-_llm_services: dict[LLMProviderId, Any] | None = None
+@dataclass
+class AppServices:
+    """Container for application services, stored on app.state."""
 
-# Track active pipeline tasks for graceful shutdown
-_active_pipeline_tasks: set[asyncio.Task[None]] = set()
-
-
-class DebugFrameProcessor(FrameProcessor):
-    """Debug processor that logs important frames for troubleshooting.
-
-    Filters out noisy frames (UserSpeakingFrame, MetricsFrame) and only logs
-    significant events like speech start/stop and transcriptions.
-    """
-
-    def __init__(self, name: str = "debug", **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self._name = name
-        self._audio_frame_count = 0
-
-    async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
-        await super().process_frame(frame, direction)
-
-        if isinstance(frame, InputAudioRawFrame):
-            self._audio_frame_count += 1
-            # Only log first few and periodic audio frames
-            if self._audio_frame_count <= 3 or self._audio_frame_count % 500 == 0:
-                logger.info(
-                    f"[{self._name}] Audio frame #{self._audio_frame_count}: "
-                    f"{len(frame.audio)} bytes, {frame.sample_rate}Hz, {frame.num_channels}ch"
-                )
-        elif isinstance(frame, TranscriptionFrame):
-            logger.info(f"[{self._name}] TRANSCRIPTION: '{frame.text}'")
-        elif isinstance(frame, UserStartedSpeakingFrame):
-            logger.info(f"[{self._name}] Speech started")
-        elif isinstance(frame, UserStoppedSpeakingFrame):
-            logger.info(f"[{self._name}] Speech stopped")
-        # Skip noisy frames: UserSpeakingFrame (fires every ~15ms), MetricsFrame
-        elif not isinstance(frame, (UserSpeakingFrame, MetricsFrame)):
-            logger.debug(f"[{self._name}] Frame: {type(frame).__name__}")
-
-        await self.push_frame(frame, direction)
+    settings: Settings
+    stt_services: dict[STTProviderId, Any]
+    llm_services: dict[LLMProviderId, Any]
+    webrtc_handler: SmallWebRTCRequestHandler
+    active_pipeline_tasks: set[asyncio.Task[None]]
 
 
-class CleanedTextData(BaseModel):
-    """Data payload containing cleaned text from LLM."""
-
-    text: str = ""
-
-
-class CleanedTextMessage(BaseModel):
-    """Message containing cleaned text response."""
-
-    data: CleanedTextData
-
-
-class TextResponseProcessor(FrameProcessor):
-    """Processor that logs message frames being sent back to the client.
-
-    This processor sits at the end of the pipeline before transport.output()
-    to log the final cleaned text being sent to the Tauri client.
-    """
-
-    async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
-        """Process frames and log OutputTransportMessageFrames.
-
-        Args:
-            frame: The frame to process
-            direction: The direction of frame flow
-        """
-        await super().process_frame(frame, direction)
-
-        if isinstance(frame, StartFrame):
-            # Log when pipeline is fully started (StartFrame has passed through all processors)
-            logger.success("Pipeline fully started (StartFrame passed through all processors)")
-        elif isinstance(frame, OutputTransportMessageFrame):
-            try:
-                msg = CleanedTextMessage.model_validate(frame.message)
-                text = msg.data.text
-            except Exception:
-                text = ""
-            logger.info(f"Sending to client: '{text}'")
-
-        await self.push_frame(frame, direction)
-
-
-async def run_pipeline(webrtc_connection: SmallWebRTCConnection) -> None:
+async def run_pipeline(
+    webrtc_connection: SmallWebRTCConnection,
+    services: AppServices,
+) -> None:
     """Run the Pipecat pipeline for a single WebRTC connection.
 
     Args:
         webrtc_connection: The SmallWebRTCConnection instance for this client
+        services: Application services container
     """
     logger.info("Starting pipeline for new WebRTC connection")
 
-    if not _settings or not _stt_services or not _llm_services:
-        logger.error("Server not properly initialized")
-        return
-
     # Create transport using the WebRTC connection
-    # audio_in_stream_on_start=False prevents timeout errors when mic is disabled
     # (client connects with enableMic: false, only enables when recording starts)
     transport = SmallWebRTCTransport(
         webrtc_connection=webrtc_connection,
         params=TransportParams(
             audio_in_enabled=True,
             audio_out_enabled=False,  # No audio output for dictation
-            audio_in_stream_on_start=False,  # Don't expect audio until client enables mic
             vad_analyzer=SileroVADAnalyzer(),
         ),
     )
@@ -182,8 +94,8 @@ async def run_pipeline(webrtc_connection: SmallWebRTCConnection) -> None:
     # Create service switchers for this connection
     from pipecat.pipeline.base_pipeline import FrameProcessor as PipecatFrameProcessor
 
-    stt_service_list = cast(list[PipecatFrameProcessor], list(_stt_services.values()))
-    llm_service_list = list(_llm_services.values())
+    stt_service_list = cast(list[PipecatFrameProcessor], list(services.stt_services.values()))
+    llm_service_list = list(services.llm_services.values())
 
     stt_switcher = ServiceSwitcher(
         services=stt_service_list,
@@ -196,8 +108,6 @@ async def run_pipeline(webrtc_connection: SmallWebRTCConnection) -> None:
     )
 
     # Initialize processors
-    debug_input = DebugFrameProcessor(name="input")
-    debug_after_stt = DebugFrameProcessor(name="after-stt")
     transcription_to_llm = TranscriptionToLLMConverter()
     transcription_buffer = TranscriptionBufferProcessor()
 
@@ -208,39 +118,38 @@ async def run_pipeline(webrtc_connection: SmallWebRTCConnection) -> None:
         llm_switcher=llm_switcher,
         llm_converter=transcription_to_llm,
         transcription_buffer=transcription_buffer,
-        stt_services=_stt_services,
-        llm_services=_llm_services,
+        stt_services=services.stt_services,
+        llm_services=services.llm_services,
     )
-
-    llm_response_converter = LLMResponseToRTVIConverter()
-    text_response = TextResponseProcessor()
 
     # Build pipeline
     pipeline = Pipeline(
         [
             transport.input(),
             config_processor,  # Handles config messages from data channel
-            debug_input,
             stt_switcher,
-            debug_after_stt,
             transcription_buffer,
             transcription_to_llm,
             llm_switcher,
-            llm_response_converter,
-            text_response,
             transport.output(),
         ]
     )
 
-    # Create pipeline task
+    # Create pipeline task with debug observer for logging key frames
     task = PipelineTask(
         pipeline,
         params=PipelineParams(
             allow_interruptions=False,
             enable_metrics=True,
             enable_usage_metrics=True,
+            enable_heartbeats=True,
         ),
-        idle_timeout_secs=None,
+        idle_timeout_frames=(HeartbeatFrame,),
+        observers=[
+            RTVIObserver(),
+            UserBotLatencyLogObserver(),
+            PipelineLogObserver(),
+        ],
     )
 
     # Set up event handlers
@@ -258,55 +167,65 @@ async def run_pipeline(webrtc_connection: SmallWebRTCConnection) -> None:
     await runner.run(task)
 
 
-def initialize_services(settings: Settings) -> bool:
+def initialize_services(settings: Settings) -> AppServices | None:
     """Initialize STT and LLM services.
 
     Args:
         settings: Application settings
 
     Returns:
-        True if services were initialized successfully
+        AppServices instance if successful, None otherwise
     """
-    global _settings, _stt_services, _llm_services
+    stt_services = create_all_available_stt_services(settings)
+    llm_services = create_all_available_llm_services(settings)
 
-    _settings = settings
-    _stt_services = create_all_available_stt_services(settings)
-    _llm_services = create_all_available_llm_services(settings)
-
-    if not _stt_services:
+    if not stt_services:
         logger.error("No STT providers available. Configure at least one STT API key.")
-        return False
+        return None
 
-    if not _llm_services:
+    if not llm_services:
         logger.error("No LLM providers available. Configure at least one LLM API key.")
-        return False
+        return None
 
-    logger.info(f"Available STT providers: {[p.value for p in _stt_services]}")
-    logger.info(f"Available LLM providers: {[p.value for p in _llm_services]}")
+    logger.info(f"Available STT providers: {[p.value for p in stt_services]}")
+    logger.info(f"Available LLM providers: {[p.value for p in llm_services]}")
 
-    # Set available providers for REST API endpoint
-    set_available_providers(_stt_services, _llm_services)
-
-    return True
+    return AppServices(
+        settings=settings,
+        stt_services=stt_services,
+        llm_services=llm_services,
+        webrtc_handler=SmallWebRTCRequestHandler(ice_servers=ICE_SERVERS),
+        active_pipeline_tasks=set(),
+    )
 
 
 @asynccontextmanager
-async def lifespan(_fastapi_app: FastAPI):  # noqa: ANN201
+async def lifespan(fastapi_app: FastAPI):  # noqa: ANN201
     """FastAPI lifespan context manager for cleanup."""
     yield
     logger.info("Shutting down server...")
 
+    # Get services from app state (may not exist if startup failed)
+    services: AppServices | None = getattr(fastapi_app.state, "services", None)
+    if services is None:
+        logger.warning("Services not initialized, skipping cleanup")
+        return
+
     # Cancel all active pipeline tasks for graceful shutdown
-    if _active_pipeline_tasks:
-        logger.info(f"Cancelling {len(_active_pipeline_tasks)} active pipeline tasks...")
-        for task in list(_active_pipeline_tasks):
+    if services.active_pipeline_tasks:
+        logger.info(f"Cancelling {len(services.active_pipeline_tasks)} active pipeline tasks...")
+        for task in list(services.active_pipeline_tasks):
             task.cancel()
-        # Wait for all tasks to complete (with timeout to avoid hanging)
-        await asyncio.gather(*_active_pipeline_tasks, return_exceptions=True)
-        logger.info("All pipeline tasks cancelled")
+        # Wait for all tasks to complete with timeout to avoid hanging
+        try:
+            async with asyncio.timeout(5.0):
+                await asyncio.gather(*services.active_pipeline_tasks, return_exceptions=True)
+            logger.info("All pipeline tasks cancelled")
+        except TimeoutError:
+            logger.warning("Timeout waiting for pipeline tasks to cancel")
 
     # SmallWebRTCRequestHandler manages all connections - close them cleanly
-    await small_webrtc_handler.close()
+    await services.webrtc_handler.close()
     logger.success("All connections cleaned up")
 
 
@@ -331,7 +250,10 @@ app.include_router(config_router)
 
 
 @app.post("/api/offer")
-async def webrtc_offer(request: SmallWebRTCRequest) -> dict[str, Any]:
+async def webrtc_offer(
+    webrtc_request: SmallWebRTCRequest,
+    request: Request,
+) -> dict[str, str] | None:
     """Handle WebRTC offer from client using SmallWebRTCRequestHandler.
 
     This endpoint handles the WebRTC signaling handshake:
@@ -340,25 +262,30 @@ async def webrtc_offer(request: SmallWebRTCRequest) -> dict[str, Any]:
     3. Returns SDP answer to client
     4. Spawns the Pipecat pipeline as a background task
     """
+    services: AppServices = request.app.state.services
 
     async def connection_callback(connection: SmallWebRTCConnection) -> None:
         """Callback invoked when connection is ready - spawns the pipeline."""
-        task = asyncio.create_task(run_pipeline(connection))
-        _active_pipeline_tasks.add(task)
-        task.add_done_callback(lambda t: _active_pipeline_tasks.discard(t))
+        task = asyncio.create_task(run_pipeline(connection, services))
+        services.active_pipeline_tasks.add(task)
+        task.add_done_callback(services.active_pipeline_tasks.discard)
 
-    answer = await small_webrtc_handler.handle_web_request(
-        request=request,
+    answer = await services.webrtc_handler.handle_web_request(
+        request=webrtc_request,
         webrtc_connection_callback=connection_callback,
     )
-    # handler.handle_web_request always returns a dict with SDP answer
-    return answer  # type: ignore
+
+    return answer
 
 
 @app.patch("/api/offer")
-async def webrtc_ice_candidate(request: SmallWebRTCPatchRequest) -> dict[str, str]:
+async def webrtc_ice_candidate(
+    patch_request: SmallWebRTCPatchRequest,
+    request: Request,
+) -> dict[str, str]:
     """Handle ICE candidate patches for WebRTC connections."""
-    await small_webrtc_handler.handle_patch_request(request)
+    services: AppServices = request.app.state.services
+    await services.webrtc_handler.handle_patch_request(patch_request)
     return {"status": "success"}
 
 
@@ -390,9 +317,11 @@ def main(
     if verbose:
         logger.info("Verbose logging enabled")
 
-    # Initialize services
-    if not initialize_services(settings):
+    # Initialize services and store on app.state
+    services = initialize_services(settings)
+    if services is None:
         raise SystemExit(1)
+    app.state.services = services
 
     logger.info("=" * 60)
     logger.success("Tambourine Server Ready!")

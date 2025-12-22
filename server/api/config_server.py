@@ -11,9 +11,9 @@ configuration data that doesn't require pipeline access.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from processors.llm import (
@@ -28,27 +28,11 @@ from services.provider_registry import (
     get_stt_provider_labels,
 )
 
+if TYPE_CHECKING:
+    from main import AppServices
+
 # Create router for config endpoints
 config_router = APIRouter()
-
-# Store available services (set at startup, static during runtime)
-_available_stt_services: dict[STTProviderId, Any] = {}
-_available_llm_services: dict[LLMProviderId, Any] = {}
-
-
-def set_available_providers(
-    stt_services: dict[STTProviderId, Any],
-    llm_services: dict[LLMProviderId, Any],
-) -> None:
-    """Set the available services (called once at startup).
-
-    Args:
-        stt_services: Dictionary of available STT services
-        llm_services: Dictionary of available LLM services
-    """
-    global _available_stt_services, _available_llm_services
-    _available_stt_services = stt_services
-    _available_llm_services = llm_services
 
 
 # =============================================================================
@@ -96,11 +80,13 @@ class AvailableProvidersResponse(BaseModel):
 
 
 @config_router.get("/api/providers/available", response_model=AvailableProvidersResponse)
-async def get_available_providers() -> AvailableProvidersResponse:
+async def get_available_providers(request: Request) -> AvailableProvidersResponse:
     """Get list of available STT and LLM providers (those with API keys configured).
 
     This endpoint returns static data configured at server startup.
     """
+    services: AppServices = request.app.state.services
+
     stt_labels = get_stt_provider_labels()
     llm_labels = get_llm_provider_labels()
 
@@ -113,7 +99,7 @@ async def get_available_providers() -> AvailableProvidersResponse:
             if hasattr(service, "model_name") and service.model_name
             else None,
         )
-        for provider_id, service in _available_stt_services.items()
+        for provider_id, service in services.stt_services.items()
     ]
 
     llm_providers = [
@@ -125,7 +111,7 @@ async def get_available_providers() -> AvailableProvidersResponse:
             if hasattr(service, "model_name") and service.model_name
             else None,
         )
-        for provider_id, service in _available_llm_services.items()
+        for provider_id, service in services.llm_services.items()
     ]
 
     return AvailableProvidersResponse(stt=stt_providers, llm=llm_providers)

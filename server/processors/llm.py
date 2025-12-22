@@ -1,6 +1,6 @@
 """LLM-based text formatting processor for dictation using idiomatic Pipecat patterns."""
 
-from typing import Any
+from typing import Any, Final
 
 from openai.types.chat import (
     ChatCompletionSystemMessageParam,
@@ -8,10 +8,6 @@ from openai.types.chat import (
 )
 from pipecat.frames.frames import (
     Frame,
-    LLMFullResponseEndFrame,
-    LLMFullResponseStartFrame,
-    OutputTransportMessageFrame,
-    TextFrame,
     TranscriptionFrame,
 )
 from pipecat.processors.aggregators.openai_llm_context import (
@@ -23,7 +19,9 @@ from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from utils.logger import logger
 
 # Main prompt section - Core rules, punctuation, new lines
-MAIN_PROMPT_DEFAULT = """You are a dictation formatting assistant. Your task is to format transcribed speech.
+MAIN_PROMPT_DEFAULT: Final[
+    str
+] = """You are a dictation formatting assistant. Your task is to format transcribed speech.
 
 ## Core Rules
 - Remove filler words (um, uh, err, erm, etc.)
@@ -92,7 +90,7 @@ world
 bye" """
 
 # Advanced prompt section - Backtrack corrections and list formatting
-ADVANCED_PROMPT_DEFAULT = """## Backtrack Corrections
+ADVANCED_PROMPT_DEFAULT: Final[str] = """## Backtrack Corrections
 When the speaker corrects themselves mid-sentence, use only the corrected version:
 - "actually" signals a correction: "at 2 actually 3" = "at 3"
 - "scratch that" removes the previous phrase: "cookies scratch that brownies" = "brownies"
@@ -117,7 +115,7 @@ Example:
   3. Review feedback" """
 
 # Dictionary prompt section - Personal word mappings
-DICTIONARY_PROMPT_DEFAULT = """## Personal Dictionary
+DICTIONARY_PROMPT_DEFAULT: Final[str] = """## Personal Dictionary
 Apply these corrections for technical terms, proper nouns, and custom words.
 
 Entries can be in various formats - interpret flexibly:
@@ -243,63 +241,6 @@ class TranscriptionToLLMConverter(FrameProcessor):
 
                 # Push context frame to trigger LLM processing
                 await self.push_frame(OpenAILLMContextFrame(context=context), direction)
-            return
-
-        # Pass through all other frames unchanged
-        await self.push_frame(frame, direction)
-
-
-class LLMResponseToRTVIConverter(FrameProcessor):
-    """Aggregates LLM response and converts to RTVI message for client.
-
-    This processor collects streamed TextFrames between LLMFullResponseStartFrame
-    and LLMFullResponseEndFrame, then sends the complete cleaned text as an
-    RTVI server message to the client.
-    """
-
-    def __init__(self, **kwargs: Any) -> None:
-        """Initialize the response converter."""
-        super().__init__(**kwargs)
-        self._accumulator: str = ""
-        self._is_accumulating: bool = False
-
-    async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
-        """Accumulate LLM response and convert to RTVI message.
-
-        Args:
-            frame: The frame to process
-            direction: The direction of frame flow
-        """
-        await super().process_frame(frame, direction)
-
-        if isinstance(frame, LLMFullResponseStartFrame):
-            # Start accumulating LLM response
-            self._accumulator = ""
-            self._is_accumulating = True
-            return
-
-        if isinstance(frame, TextFrame) and self._is_accumulating:
-            # Accumulate text chunks from LLM
-            self._accumulator += frame.text
-            return
-
-        if isinstance(frame, LLMFullResponseEndFrame):
-            # LLM response complete - send cleaned text to client
-            self._is_accumulating = False
-            cleaned_text = self._accumulator.strip()
-
-            if cleaned_text:
-                logger.info(f"Cleaned text: '{cleaned_text}'")
-
-                # Create RTVI message for client
-                rtvi_message = {
-                    "label": "rtvi-ai",
-                    "type": "server-message",
-                    "data": {"type": "transcript", "text": cleaned_text},
-                }
-                await self.push_frame(OutputTransportMessageFrame(message=rtvi_message), direction)
-
-            self._accumulator = ""
             return
 
         # Pass through all other frames unchanged

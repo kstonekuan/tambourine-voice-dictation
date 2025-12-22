@@ -1,0 +1,95 @@
+"""Custom logging observer for pipeline events."""
+
+from pipecat.frames.frames import (
+    InputAudioRawFrame,
+    LLMFullResponseEndFrame,
+    LLMFullResponseStartFrame,
+    MetricsFrame,
+    StartFrame,
+    TextFrame,
+    TranscriptionFrame,
+    UserSpeakingFrame,
+    UserStartedSpeakingFrame,
+    UserStoppedSpeakingFrame,
+)
+from pipecat.observers.base_observer import BaseObserver, FramePushed
+from pipecat.processors.frameworks.rtvi import RTVIServerMessageFrame
+from pipecat.services.llm_service import LLMService
+from pipecat.services.stt_service import STTService
+
+from utils.logger import logger
+
+
+class PipelineLogObserver(BaseObserver):
+    """Observer that logs key pipeline events at INFO level.
+
+    Logs at INFO level:
+    - Pipeline start (StartFrame)
+    - Audio frames (first 3 and every 500th)
+    - Transcription results from STT
+    - Speech start/stop from VAD
+    - LLM response text (aggregated)
+    - RTVI server messages sent to client
+
+    Logs at DEBUG level:
+    - Other frames (excluding noisy UserSpeakingFrame and MetricsFrame)
+    """
+
+    def __init__(self) -> None:
+        """Initialize the observer."""
+        super().__init__()
+        self._llm_accumulator: str = ""
+        self._is_accumulating: bool = False
+        self._audio_frame_count: int = 0
+
+    async def on_push_frame(self, data: FramePushed) -> None:
+        """Handle frame push events and log key pipeline activities.
+
+        Args:
+            data: The frame push event data containing source, frame, and other info.
+        """
+        src = data.source
+        frame = data.frame
+
+        # Log pipeline start
+        if isinstance(frame, StartFrame):
+            logger.info("Pipeline started")
+
+        # Log audio frames (first few and periodic)
+        elif isinstance(frame, InputAudioRawFrame):
+            self._audio_frame_count += 1
+            if self._audio_frame_count <= 3 or self._audio_frame_count % 500 == 0:
+                logger.info(
+                    f"Audio frame #{self._audio_frame_count}: "
+                    f"{len(frame.audio)} bytes, {frame.sample_rate}Hz, {frame.num_channels}ch"
+                )
+
+        # Log transcription from STT
+        elif isinstance(frame, TranscriptionFrame) and isinstance(src, STTService):
+            logger.info(f"TRANSCRIPTION: '{frame.text}'")
+
+        # Log speech start/stop
+        elif isinstance(frame, UserStartedSpeakingFrame):
+            logger.info("Speech started")
+        elif isinstance(frame, UserStoppedSpeakingFrame):
+            logger.info("Speech stopped")
+
+        # Accumulate and log LLM response
+        elif isinstance(frame, LLMFullResponseStartFrame) and isinstance(src, LLMService):
+            self._llm_accumulator = ""
+            self._is_accumulating = True
+        elif isinstance(frame, TextFrame) and self._is_accumulating:
+            self._llm_accumulator += frame.text
+        elif isinstance(frame, LLMFullResponseEndFrame) and isinstance(src, LLMService):
+            self._is_accumulating = False
+            if self._llm_accumulator.strip():
+                logger.info(f"Cleaned text: '{self._llm_accumulator.strip()}'")
+            self._llm_accumulator = ""
+
+        # Log RTVI server messages sent to client
+        elif isinstance(frame, RTVIServerMessageFrame):
+            logger.info(f"Sending to client: {frame.data}")
+
+        # Log other frames at debug level (skip noisy ones)
+        elif not isinstance(frame, (UserSpeakingFrame, MetricsFrame, TextFrame)):
+            logger.debug(f"Frame: {type(frame).__name__}")

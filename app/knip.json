@@ -1,5 +1,5 @@
 {
-	"entry": ["src/main.tsx", "src/overlay-main.tsx", "src/app.css"],
+	"entry": ["src/main.tsx", "src/overlay-main.tsx", "src/overlay-global.css"],
 	"project": ["**/*.{js,ts,jsx,tsx}"],
 	"ignoreExportsUsedInFile": true
 }

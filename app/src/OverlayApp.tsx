@@ -1,6 +1,10 @@
 import { Loader } from "@mantine/core";
 import { useResizeObserver, useTimeout } from "@mantine/hooks";
-import { PipecatClient, RTVIEvent } from "@pipecat-ai/client-js";
+import {
+	type BotLLMTextData,
+	PipecatClient,
+	RTVIEvent,
+} from "@pipecat-ai/client-js";
 import {
 	PipecatClientProvider,
 	usePipecatClient,
@@ -26,14 +30,9 @@ import {
 	tauriAPI,
 } from "./lib/tauri";
 import { useRecordingStore } from "./stores/recordingStore";
-import "./app.css";
+import "./overlay-global.css";
 
 // Zod schemas for message validation
-const TranscriptMessageSchema = z.object({
-	type: z.literal("transcript"),
-	text: z.string(),
-});
-
 const RecordingCompleteMessageSchema = z.object({
 	type: z.literal("recording-complete"),
 	hasContent: z.boolean().optional(),
@@ -97,6 +96,9 @@ function RecordingControl() {
 
 	// Track if we've ever connected (to distinguish initial connection from reconnection)
 	const hasConnectedRef = useRef(false);
+
+	// Accumulate LLM text chunks (RTVIObserver streams text in chunks)
+	const llmTextAccumulatorRef = useRef("");
 
 	// Track previous settings to detect actual changes (for syncing while connected)
 	const prevSettingsRef = useRef(settings);
@@ -361,26 +363,53 @@ function RecordingControl() {
 		}, [client, serverUrl, handleDisconnected]),
 	);
 
-	// Server message handler
+	// LLM text streaming handlers (using official RTVI protocol via RTVIObserver)
+	useRTVIClientEvent(
+		RTVIEvent.BotLlmStarted,
+		useCallback(() => {
+			// Reset accumulator when LLM starts generating
+			llmTextAccumulatorRef.current = "";
+		}, []),
+	);
+
+	useRTVIClientEvent(
+		RTVIEvent.BotLlmText,
+		useCallback((data: BotLLMTextData) => {
+			// Accumulate text chunks from LLM
+			llmTextAccumulatorRef.current += data.text;
+		}, []),
+	);
+
+	useRTVIClientEvent(
+		RTVIEvent.BotLlmStopped,
+		useCallback(async () => {
+			clearResponseTimeout();
+			const text = llmTextAccumulatorRef.current.trim();
+			llmTextAccumulatorRef.current = "";
+
+			if (text) {
+				console.debug("[Pipecat] LLM response:", text);
+				try {
+					await typeTextMutation.mutateAsync(text);
+				} catch (error) {
+					console.error("[Pipecat] Failed to type text:", error);
+				}
+				addHistoryEntry.mutate(text);
+			}
+			handleResponse();
+		}, [
+			clearResponseTimeout,
+			typeTextMutation,
+			addHistoryEntry,
+			handleResponse,
+		]),
+	);
+
+	// Server message handler (for custom messages: config-updated, recording-complete, etc.)
 	useRTVIClientEvent(
 		RTVIEvent.ServerMessage,
 		useCallback(
 			async (message: unknown) => {
-				const transcriptResult = TranscriptMessageSchema.safeParse(message);
-				if (transcriptResult.success) {
-					clearResponseTimeout();
-					const { text } = transcriptResult.data;
-					console.debug("[Pipecat] Transcript:", text);
-					try {
-						await typeTextMutation.mutateAsync(text);
-					} catch (error) {
-						console.error("[Pipecat] Failed to type text:", error);
-					}
-					addHistoryEntry.mutate(text);
-					handleResponse();
-					return;
-				}
-
 				const recordingCompleteResult =
 					RecordingCompleteMessageSchema.safeParse(message);
 				if (recordingCompleteResult.success) {
@@ -411,7 +440,7 @@ function RecordingControl() {
 					return;
 				}
 			},
-			[clearResponseTimeout, typeTextMutation, addHistoryEntry, handleResponse],
+			[clearResponseTimeout, handleResponse],
 		),
 	);
 
@@ -477,6 +506,7 @@ function RecordingControl() {
 				height: "fit-content",
 				backgroundColor: "rgba(0, 0, 0, 0.9)",
 				borderRadius: 12,
+				// Overlay border - adjust thickness here (e.g., "2px", "3px")
 				border: "1px solid rgba(128, 128, 128, 0.5)",
 				padding: 2,
 				cursor: "grab",

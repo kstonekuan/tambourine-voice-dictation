@@ -14,24 +14,24 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 from pipecat.frames.frames import (
     Frame,
     InputTransportMessageFrame,
-    OutputTransportMessageFrame,
     TranscriptionFrame,
     UserStartedSpeakingFrame,
     UserStoppedSpeakingFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
+from pipecat.processors.frameworks.rtvi import RTVIServerMessageFrame
 from pipecat.transcriptions.language import Language
 from pydantic import BaseModel, ValidationError
 
 from utils.logger import logger
 
 # Default timeout for waiting for STT transcriptions (can be overridden at runtime)
-DEFAULT_TRANSCRIPTION_WAIT_TIMEOUT_SECONDS = 0.5
+DEFAULT_TRANSCRIPTION_WAIT_TIMEOUT_SECONDS: Final[float] = 0.5
 
 
 # =============================================================================
@@ -107,21 +107,6 @@ class ClientMessage(BaseModel):
 
     type: Literal["client-message"]
     data: ClientMessageData
-
-
-class RecordingCompleteData(BaseModel):
-    """Data payload for recording-complete server message."""
-
-    type: Literal["recording-complete"]
-    hasContent: bool
-
-
-class RTVIServerMessage(BaseModel):
-    """Server message in RTVI format."""
-
-    label: Literal["rtvi-ai"]
-    type: Literal["server-message"]
-    data: RecordingCompleteData
 
 
 # =============================================================================
@@ -460,10 +445,5 @@ class TranscriptionBufferProcessor(FrameProcessor):
 
     async def _emit_empty_response(self, direction: FrameDirection) -> None:
         """Send an empty response message to the client."""
-        message = RTVIServerMessage(
-            label="rtvi-ai",
-            type="server-message",
-            data=RecordingCompleteData(type="recording-complete", hasContent=False),
-        )
-        empty_response = OutputTransportMessageFrame(message=message.model_dump())
-        await self.push_frame(empty_response, direction)
+        frame = RTVIServerMessageFrame(data={"type": "recording-complete", "hasContent": False})
+        await self.push_frame(frame, direction)
