@@ -23,7 +23,7 @@ tauri-utils = "2.8.1"
 tauri-plugin-opener = "2.5.2"
 tauri-plugin-store = "2.4.1"
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.145"
+serde_json = "1.0.146"
 log = "0.4.29"
 
 # Keyboard automation
