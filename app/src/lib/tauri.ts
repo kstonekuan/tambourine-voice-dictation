@@ -63,7 +63,10 @@ export interface AppSettings {
 	llm_provider: string | null;
 	auto_mute_audio: boolean;
 	stt_timeout_seconds: number | null;
+	server_url: string;
 }
+
+export const DEFAULT_SERVER_URL = "http://127.0.0.1:8765";
 
 // ============================================================================
 // Default values - must match Rust defaults
@@ -212,6 +215,7 @@ export const tauriAPI = {
 			auto_mute_audio: (await store.get<boolean>("auto_mute_audio")) ?? false,
 			stt_timeout_seconds:
 				(await store.get<number | null>("stt_timeout_seconds")) ?? null,
+			server_url: (await store.get<string>("server_url")) ?? DEFAULT_SERVER_URL,
 		};
 	},
 
@@ -274,6 +278,12 @@ export const tauriAPI = {
 	async updateSTTTimeout(timeoutSeconds: number | null): Promise<void> {
 		const store = await getStore();
 		await store.set("stt_timeout_seconds", timeoutSeconds);
+		await store.save();
+	},
+
+	async updateServerUrl(url: string): Promise<void> {
+		const store = await getStore();
+		await store.set("server_url", url);
 		await store.save();
 	},
 
@@ -411,20 +421,26 @@ export interface AvailableProvidersData {
 	llm: ProviderInfo[];
 }
 
-// Create ky instance with sensible defaults for local API
-const api = ky.create({
-	prefixUrl: "http://127.0.0.1:8765",
-	timeout: 10000,
-	retry: {
-		limit: 2,
-		methods: ["get", "post"],
-	},
-});
+// Create ky instance with sensible defaults for API calls
+function createApiClient(serverUrl: string) {
+	return ky.create({
+		prefixUrl: serverUrl,
+		timeout: 10000,
+		retry: {
+			limit: 2,
+			methods: ["get", "post"],
+		},
+	});
+}
 
 export const configAPI = {
 	// Static prompt defaults (runtime config goes via data channel)
-	getDefaultSections: () =>
-		api.get("api/prompt/sections/default").json<DefaultSectionsResponse>(),
+	getDefaultSections: async (serverUrl: string) => {
+		const api = createApiClient(serverUrl);
+		return api
+			.get("api/prompt/sections/default")
+			.json<DefaultSectionsResponse>();
+	},
 	// Note: Provider info now comes via RTVI message after WebRTC connection
 	// Use tauriAPI.onAvailableProviders() to listen for provider data
 };

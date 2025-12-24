@@ -9,6 +9,7 @@ import {
 	HotkeySettings,
 	PromptSettings,
 	ProvidersSettings,
+	ServerSettings,
 } from "./components/settings";
 import {
 	DEFAULT_HOLD_HOTKEY,
@@ -201,6 +202,7 @@ function SettingsView() {
 			<AudioSettings />
 			<HotkeySettings />
 			<PromptSettings />
+			<ServerSettings />
 		</div>
 	);
 }

@@ -4,6 +4,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 use tauri::AppHandle;
+use tauri_plugin_store::StoreExt;
 
 /// Delay after clipboard operations to ensure system stability
 const CLIPBOARD_STABILIZATION_DELAY_MS: u64 = 50;
@@ -14,11 +15,17 @@ const KEY_EVENT_DELAY_MS: u64 = 50;
 /// Delay before restoring previous clipboard content
 const CLIPBOARD_RESTORE_DELAY_MS: u64 = 100;
 
-const SERVER_URL: &str = "http://127.0.0.1:8765";
+/// Default server URL when not configured
+const DEFAULT_SERVER_URL: &str = "http://127.0.0.1:8765";
 
 #[tauri::command]
-pub async fn get_server_url() -> String {
-    SERVER_URL.to_string()
+pub async fn get_server_url(app: AppHandle) -> Result<String, String> {
+    let store = app.store("settings.json").map_err(|e| e.to_string())?;
+    let url = store
+        .get("server_url")
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_else(|| DEFAULT_SERVER_URL.to_string());
+    Ok(url)
 }
 
 #[tauri::command]

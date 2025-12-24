@@ -267,11 +267,19 @@ export function useClearHistory() {
 
 // Config API queries and mutations (FastAPI server)
 export function useDefaultSections() {
+	const { data: serverUrl } = useServerUrl();
+
 	return useQuery({
-		queryKey: ["defaultSections"],
-		queryFn: () => configAPI.getDefaultSections(),
+		queryKey: ["defaultSections", serverUrl],
+		queryFn: () => {
+			if (!serverUrl) {
+				throw new Error("Server URL not available");
+			}
+			return configAPI.getDefaultSections(serverUrl);
+		},
 		staleTime: Number.POSITIVE_INFINITY, // Default prompts never change
 		retry: false, // Don't retry if server not available
+		enabled: !!serverUrl, // Only fetch when server URL is available
 	});
 }
 
@@ -332,6 +340,20 @@ export function useUpdateSTTTimeout() {
 			tauriAPI.updateSTTTimeout(timeoutSeconds),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["settings"] });
+		},
+	});
+}
+
+// Server URL mutation
+export function useUpdateServerUrl() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (url: string) => tauriAPI.updateServerUrl(url),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["settings"] });
+			queryClient.invalidateQueries({ queryKey: ["serverUrl"] });
+			// Notify other windows about settings change
+			tauriAPI.emitSettingsChanged();
 		},
 	});
 }
