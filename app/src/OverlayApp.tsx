@@ -118,22 +118,42 @@ function RecordingControl() {
 	// Track if we've ever connected (to distinguish initial connection from reconnection)
 	const hasConnectedRef = useRef(false);
 
+	// Track previous server URL to detect changes
+	const previousServerUrlRef = useRef<string | null>(null);
+
 	// Accumulate LLM text chunks (RTVIObserver streams text in chunks)
 	const llmTextAccumulatorRef = useRef("");
 
 	// Track previous settings to detect actual changes (for syncing while connected)
 	const prevSettingsRef = useRef(settings);
 
-	// Initial connection: triggered when client and serverUrl are ready
+	// Connection management: handles initial connection and URL changes
 	// SmallWebRTC handles reconnection internally (3 attempts)
 	useEffect(() => {
 		if (!client || !serverUrl) return;
 
-		client
-			.connect({ webrtcRequestParams: { endpoint: `${serverUrl}/api/offer` } })
-			.catch((error: unknown) => {
-				console.error("[Pipecat] Connection failed:", error);
-			});
+		const previousUrl = previousServerUrlRef.current;
+		previousServerUrlRef.current = serverUrl;
+
+		// If URL changed, just disconnect - the Disconnected handler will reconnect
+		if (previousUrl && previousUrl !== serverUrl) {
+			console.log(
+				`[Pipecat] Server URL changed from ${previousUrl} to ${serverUrl}`,
+			);
+			client.disconnect();
+			return;
+		}
+
+		// Initial connection only
+		if (!previousUrl) {
+			client
+				.connect({
+					webrtcRequestParams: { endpoint: `${serverUrl}/api/offer` },
+				})
+				.catch((error: unknown) => {
+					console.error("[Pipecat] Connection failed:", error);
+				});
+		}
 	}, [client, serverUrl]);
 
 	// TanStack Query hooks
