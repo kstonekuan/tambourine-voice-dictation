@@ -204,6 +204,31 @@ uv run python main.py --host 0.0.0.0 --port 9000
 uv run python main.py --verbose
 ```
 
+## Docker Deployment
+
+Run the server in Docker instead of installing Python dependencies locally.
+
+```bash
+cd server
+
+# Copy environment template and add your API keys
+cp .env.example .env
+
+# Build and start the container
+docker compose up --build -d
+
+# View logs
+docker compose logs -f
+
+# Stop the container
+docker compose down
+
+# Update to latest code
+docker compose down && docker compose up --build -d
+```
+
+The `.env` file is read at runtime (not baked into the image), so your API keys stay secure.
+
 ## App Commands
 
 ```bash
