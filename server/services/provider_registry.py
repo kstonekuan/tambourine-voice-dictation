@@ -27,6 +27,7 @@ from pipecat.services.ollama.llm import OLLamaLLMService
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.services.openai.stt import OpenAISTTService
 from pipecat.services.openrouter.llm import OpenRouterLLMService
+from pipecat.services.speechmatics.stt import SpeechmaticsSTTService
 from pipecat.services.stt_service import STTService
 from pipecat.services.whisper.stt import WhisperSTTService
 
@@ -42,6 +43,7 @@ if TYPE_CHECKING:
 class STTProviderId(StrEnum):
     """Speech-to-Text provider identifiers."""
 
+    SPEECHMATICS = "speechmatics"
     ASSEMBLYAI = "assemblyai"
     AWS = "aws"
     AZURE = "azure"
@@ -219,6 +221,17 @@ class LLMProviderConfig:
 # =============================================================================
 
 STT_PROVIDERS: Final[dict[STTProviderId, STTProviderConfig]] = {
+    STTProviderId.SPEECHMATICS: STTProviderConfig(
+        provider_id=STTProviderId.SPEECHMATICS,
+        display_name="Speechmatics",
+        service_class=SpeechmaticsSTTService,
+        credential_mapper=ApiKeyMapper("speechmatics_api_key"),
+        default_kwargs={
+            "params": SpeechmaticsSTTService.InputParams(
+                end_of_utterance_silence_trigger=0.5,
+            )
+        },
+    ),
     STTProviderId.ASSEMBLYAI: STTProviderConfig(
         provider_id=STTProviderId.ASSEMBLYAI,
         display_name="AssemblyAI",

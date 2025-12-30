@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     assemblyai_api_key: str | None = Field(None, description="AssemblyAI API key for STT")
     cartesia_api_key: str | None = Field(None, description="Cartesia API key for STT")
     deepgram_api_key: str | None = Field(None, description="Deepgram API key for STT")
+    speechmatics_api_key: str | None = Field(None, description="Speechmatics API key for STT")
     aws_access_key_id: str | None = Field(None, description="AWS access key ID for Transcribe")
     aws_secret_access_key: str | None = Field(
         None, description="AWS secret access key for Transcribe"
